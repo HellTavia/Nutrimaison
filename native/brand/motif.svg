@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Toit de maison -->
+  <path d="M232 470 L512 230 L792 470" fill="none" stroke="#F6F1E6" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Murs (bol) -->
+  <path d="M300 470 L300 742 Q300 790 348 790 L676 790 Q724 790 724 742 L724 470" fill="none" stroke="#F6F1E6" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Feuille -->
+  <path d="M512 700 C 400 650 392 520 512 420 C 632 520 624 650 512 700 Z" fill="#B7CC8E"/>
+  <path d="M512 690 L512 470" stroke="#2F4A3C" stroke-width="22" stroke-linecap="round"/>
+  <path d="M512 600 L566 548 M512 540 L462 494" stroke="#2F4A3C" stroke-width="18" stroke-linecap="round"/>
+  <!-- Petit soleil / grain -->
+  <circle cx="770" cy="262" r="42" fill="#C1922B"/>
+</svg>
