@@ -368,7 +368,7 @@ function BodyFatResult({ bf, kg, sexe, other, otherLabel }) {
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: MONO, fontSize: 36, fontWeight: 600 }}>{round(bf)}%</span>
-        <Tag color="#fff" bg={color}>{cat}</Tag>
+        <Tag color={C.onAccent} bg={color}>{cat}</Tag>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <MiniStat label="Masse grasse" value={`${round(fatKg)} kg`} />

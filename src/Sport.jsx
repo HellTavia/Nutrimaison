@@ -258,7 +258,7 @@ function SportHome({ s, idx, kg, workouts, go, personalInfo }) {
             return (
               <div key={d} style={{ flex: 1, textAlign: "center" }}>
                 <div style={{
-                  height: 34, borderRadius: 9, background: n ? C.herb : C.paperDark, color: n ? "#fff" : C.inkSoft,
+                  height: 34, borderRadius: 9, background: n ? C.herb : C.paperDark, color: n ? C.onAccent : C.inkSoft,
                   display: "flex", alignItems: "center", justifyContent: "center", border: isT ? `2px solid ${C.ochre}` : "2px solid transparent",
                 }}>{n ? <Check size={15} /> : null}</div>
                 <span style={{ fontSize: 10.5, color: C.inkSoft }}>{"LMMJVSD"[days.indexOf(d)]}</span>
@@ -273,17 +273,17 @@ function SportHome({ s, idx, kg, workouts, go, personalInfo }) {
       </Card>
 
       {prog ? (
-        <Card style={{ background: C.herb, border: "none", color: "#fff" }}>
+        <Card style={{ background: C.hero, border: "none", color: C.onHero }}>
           <p style={{ margin: 0, fontSize: 11.5, color: "#BFD3C6", textTransform: "uppercase", letterSpacing: 0.6 }}>Prochaine séance</p>
           <p style={{ margin: "4px 0 2px", fontFamily: SERIF, fontWeight: 600, fontSize: 19 }}>{prog.sessions[nextIdx].name}</p>
           <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#DCE8E0" }}>
             {prog.name} · {prog.sessions[nextIdx].items.length} exercices{prog.minutes ? ` · ~${prog.minutes} min` : ""}
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn kind="soft" onClick={() => go("run", { program: prog, index: nextIdx })} style={{ flex: 1, background: "#fff" }}>
+            <Btn kind="soft" onClick={() => go("run", { program: prog, index: nextIdx })} style={{ flex: 1, background: C.onHero, color: C.hero }}>
               <Play size={15} /> Démarrer
             </Btn>
-            <Btn kind="ghost" onClick={() => go("program", { program: prog })} style={{ color: "#fff", borderColor: "rgba(255,255,255,0.5)" }}>Voir</Btn>
+            <Btn kind="ghost" onClick={() => go("program", { program: prog })} style={{ color: C.onHero, borderColor: "rgba(255,255,255,0.5)" }}>Voir</Btn>
           </div>
         </Card>
       ) : (
@@ -468,7 +468,7 @@ function ProgramsList({ s, onBack, onOpen, onNewSession }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ fontWeight: 600, fontSize: 14.5 }}>{p.name}</span>
-            {(s.activeProgram === p.id || s.cardioProgram === p.id) && <Tag color="#fff" bg={C.herb}>Actif</Tag>}
+            {(s.activeProgram === p.id || s.cardioProgram === p.id) && <Tag color={C.onAccent} bg={C.herb}>Actif</Tag>}
           </div>
           <p style={{ margin: "3px 0 0", fontSize: 12, color: C.inkSoft }}>
             {p.custom ? `${p.sessions[0].items.length} exercices` : [
@@ -1046,7 +1046,7 @@ function ExerciseLibrary({ s, idx, onBack, onUpdate }) {
             {chain.map((c) => (
               <button key={c.id} onClick={() => onUpdate({ variants: { ...s.variants, [ex.chain]: c.id } })} style={{ ...rowBtn, borderColor: current === c.id ? C.herb : C.line }}>
                 <span><span style={{ fontFamily: MONO, color: C.inkSoft }}>{c.lvl + 1}.</span> {c.name}</span>
-                {current === c.id ? <Tag color="#fff" bg={C.herb}>Mon niveau</Tag> : <span style={{ fontSize: 11.5, color: C.inkSoft }}>choisir</span>}
+                {current === c.id ? <Tag color={C.onAccent} bg={C.herb}>Mon niveau</Tag> : <span style={{ fontSize: 11.5, color: C.inkSoft }}>choisir</span>}
               </button>
             ))}
             <p style={hint}>Ton niveau remplace automatiquement cet exercice dans tous les programmes.</p>
@@ -1280,7 +1280,7 @@ export function Toggle({ checked, onChange, label, sub }) {
   return (
     <div onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", padding: "4px 0" }}>
       <div style={{ width: 42, height: 24, borderRadius: 999, background: checked ? C.herb : C.line, position: "relative", flexShrink: 0, transition: "background .2s", marginTop: 1 }}>
-        <div style={{ width: 18, height: 18, borderRadius: 999, background: "#fff", position: "absolute", top: 3, left: checked ? 21 : 3, transition: "left .2s" }} />
+        <div style={{ width: 18, height: 18, borderRadius: 999, background: C.onHero, position: "absolute", top: 3, left: checked ? 21 : 3, transition: "left .2s" }} />
       </div>
       <div>
         <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600 }}>{label}</p>

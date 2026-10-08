@@ -80,7 +80,7 @@ export function CalendarSheet({ currentDate, allDays, weights, goalKcal, onPick,
         </p>
       )}
       <button onClick={() => { onPick(today); onClose(); }} style={{
-        width: "100%", marginTop: 12, padding: "11px 0", borderRadius: 12, border: "none", background: C.herb, color: "#fff", fontWeight: 600, fontSize: 14,
+        width: "100%", marginTop: 12, padding: "11px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14,
       }}>Revenir à aujourd'hui</button>
     </Sheet>
   );

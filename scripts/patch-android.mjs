@@ -173,6 +173,13 @@ edit("gradle.properties", (s) => s.replace(/\n?android\.suppressUnsupportedCompi
   }
 }
 
+/* 4 ter. Thème Android « DayNight » : la page web sait alors si le téléphone est en mode sombre
+   (option « Comme le téléphone » de Profil → Apparence). */
+{
+  const st = path.join(A, "app", "src", "main", "res", "values", "styles.xml");
+  if (fs.existsSync(st)) edit(path.join("app", "src", "main", "res", "values", "styles.xml"), (s) => s.replace(/Theme\.AppCompat\.Light\./g, "Theme.AppCompat.DayNight."));
+}
+
 /* 5. Manifeste : permissions Health Connect, caméra, page de confidentialité */
 edit(path.join("app", "src", "main", "AndroidManifest.xml"), (s) => {
   const perms = [

@@ -63,7 +63,7 @@ export function FridgeInput({ items, pantry, setPantry, extras, setExtras }) {
           placeholder="Autre chose ? ex : feta, épinards, restes de rôti"
           style={{ ...inputStyle, flex: 1, fontSize: 13, padding: "9px 10px" }} />
         <button onClick={addExtras} disabled={!txt.trim()} aria-label="Ajouter au frigo" style={{
-          background: C.herb, color: "#fff", border: "none", borderRadius: 10, width: 40, display: "flex", alignItems: "center", justifyContent: "center", opacity: txt.trim() ? 1 : 0.5,
+          background: C.herb, color: C.onAccent, border: "none", borderRadius: 10, width: 40, display: "flex", alignItems: "center", justifyContent: "center", opacity: txt.trim() ? 1 : 0.5,
         }}><Plus size={17} /></button>
       </div>
       {n > 0 && (
@@ -179,7 +179,7 @@ export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe }) 
                   });
                   setSaved((s) => ({ ...s, [p.id]: true }));
                 }} style={{
-                  padding: "7px 10px", borderRadius: 9, border: "none", background: saved[p.id] ? C.sage : C.herb, color: saved[p.id] ? C.herb : "#fff", fontSize: 12, fontWeight: 600,
+                  padding: "7px 10px", borderRadius: 9, border: "none", background: saved[p.id] ? C.sage : C.herb, color: saved[p.id] ? C.herb : C.onAccent, fontSize: 12, fontWeight: 600,
                 }}>{saved[p.id] ? "✓ Dans Mes recettes" : "Enregistrer la recette"}</button>
               </div>
               {p.steps.length > 0 && (
@@ -246,7 +246,7 @@ export function ShoppingList({ list, setList }) {
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         <input value={txt} onChange={(e) => setTxt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Ajouter un article"
           style={{ ...inputStyle, flex: 1, fontSize: 13, padding: "8px 10px" }} />
-        <button onClick={add} disabled={!txt.trim()} aria-label="Ajouter à la liste" style={{ background: C.herb, color: "#fff", border: "none", borderRadius: 10, width: 38, display: "flex", alignItems: "center", justifyContent: "center", opacity: txt.trim() ? 1 : 0.5 }}><Plus size={16} /></button>
+        <button onClick={add} disabled={!txt.trim()} aria-label="Ajouter à la liste" style={{ background: C.herb, color: C.onAccent, border: "none", borderRadius: 10, width: 38, display: "flex", alignItems: "center", justifyContent: "center", opacity: txt.trim() ? 1 : 0.5 }}><Plus size={16} /></button>
       </div>
       {done.length > 0 && (
         <button onClick={() => setList(todo)} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 11.5, padding: "8px 0 0", display: "flex", alignItems: "center", gap: 4 }}>

@@ -117,7 +117,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
 
   const box = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 14, marginBottom: 12 };
   const small = { fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, margin: "6px 0 0" };
-  const chip = (active) => ({ flex: 1, padding: "8px 6px", borderRadius: 10, border: `1px solid ${active ? C.herb : C.line}`, background: active ? C.herb : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600 });
+  const chip = (active) => ({ flex: 1, padding: "8px 6px", borderRadius: 10, border: `1px solid ${active ? C.herb : C.line}`, background: active ? C.herb : C.card, color: active ? C.onAccent : C.ink, fontSize: 12.5, fontWeight: 600 });
   const stepBtn = { width: 32, height: 32, borderRadius: 9, border: "none", background: C.sage, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center" };
 
   if (!apiKey) {
@@ -143,7 +143,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
         ))}
       </div>
       <button onClick={analyze} disabled={busy || text.trim().length < 3} style={{
-        width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: C.herb, color: "#fff", fontWeight: 600, fontSize: 14,
+        width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy || text.trim().length < 3 ? 0.6 : 1,
       }}>
         {busy ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Analyse…</> : <><Sparkles size={16} /> Analyser</>}
@@ -212,7 +212,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
           </label>
 
           <button onClick={add} disabled={done === "added" || done === "both"} style={{
-            width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.herb, color: "#fff", fontWeight: 600, fontSize: 14, marginBottom: 8,
+            width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14, marginBottom: 8,
             opacity: done === "added" || done === "both" ? 0.6 : 1,
           }}>{done === "added" || done === "both" ? <><Check size={15} style={{ verticalAlign: -2 }} /> Ajouté ({mealLabel})</> : `Ajouter au journal · ${mealLabel}`}</button>
           {mode === "recette" && (

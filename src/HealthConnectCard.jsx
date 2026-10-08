@@ -99,7 +99,7 @@ export function HealthConnectCard({ onSync }) {
               ))}
 
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button onClick={authorize} disabled={busy} style={{ ...btn, background: anyMissing ? C.herb : C.sage, color: anyMissing ? "#fff" : C.herb }}>
+                <button onClick={authorize} disabled={busy} style={{ ...btn, background: anyMissing ? C.herb : C.sage, color: anyMissing ? C.onAccent : C.herb }}>
                   <ShieldCheck size={14} /> {anyMissing ? "Autoriser l'accès" : "Autorisations"}
                 </button>
                 <button onClick={syncNow} disabled={busy} style={btn}><RefreshCw size={14} /> Synchroniser</button>

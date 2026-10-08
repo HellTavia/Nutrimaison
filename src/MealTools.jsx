@@ -15,10 +15,10 @@ const sumKcal = (list) => Math.round((list || []).reduce((s, e) => s + (e.kcal |
 
 const chip = (active) => ({
   padding: "6px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, border: `1px solid ${active ? C.herb : C.line}`,
-  background: active ? C.herb : C.card, color: active ? "#fff" : C.ink, whiteSpace: "nowrap", flexShrink: 0,
+  background: active ? C.herb : C.card, color: active ? C.onAccent : C.ink, whiteSpace: "nowrap", flexShrink: 0,
 });
 const primary = (disabled) => ({
-  width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: C.herb, color: "#fff",
+  width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent,
   fontWeight: 600, fontSize: 14, opacity: disabled ? 0.5 : 1,
 });
 
@@ -107,7 +107,7 @@ export function MealActions({
         <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 0 }}>Les {items.length} aliments ({sumKcal(items)} kcal) seront retirés de ce jour.</p>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setMode("menu")} style={{ flex: 1, padding: "11px 0", borderRadius: 12, border: `1px solid ${C.line}`, background: C.card, fontSize: 13 }}>Annuler</button>
-          <button onClick={() => { onClear(); onClose(); }} style={{ flex: 1, padding: "11px 0", borderRadius: 12, border: "none", background: C.berry, color: "#fff", fontWeight: 600, fontSize: 13 }}>Vider</button>
+          <button onClick={() => { onClear(); onClose(); }} style={{ flex: 1, padding: "11px 0", borderRadius: 12, border: "none", background: C.berry, color: C.onAccent, fontWeight: 600, fontSize: 13 }}>Vider</button>
         </div>
       </Sheet>
     );
@@ -190,7 +190,7 @@ function CopyFrom({ meal, currentDate, allDays, labels, order, templates, onCopy
                 </span>
               </button>
               {!isOpen && (
-                <button onClick={() => onCopy(s.list)} style={{ background: C.herb, color: "#fff", border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                <button onClick={() => onCopy(s.list)} style={{ background: C.herb, color: C.onAccent, border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
                   Tout copier
                 </button>
               )}
@@ -328,7 +328,7 @@ export function NewProductForm({ barcode, initialName, geminiKey, onSave, onCanc
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button onClick={onCancel} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.inkSoft, fontSize: 13 }}>Annuler</button>
         <button disabled={!ok} onClick={() => onSave({ name: name.trim(), barcode, kcal: vals.kcal || 0, prot: vals.prot || 0, carbs: vals.carbs || 0, fat: vals.fat || 0 })}
-          style={{ flex: 2, padding: "10px 0", borderRadius: 10, border: "none", background: C.herb, color: "#fff", fontWeight: 600, fontSize: 13, opacity: ok ? 1 : 0.5 }}>
+          style={{ flex: 2, padding: "10px 0", borderRadius: 10, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 13, opacity: ok ? 1 : 0.5 }}>
           Enregistrer et utiliser
         </button>
       </div>

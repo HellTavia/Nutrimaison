@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.12.0-C1922B" alt="Version 2.12.0">
+  <img src="https://img.shields.io/badge/version-2.14.0-C1922B" alt="Version 2.14.0">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
@@ -46,6 +46,8 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 
 ### Nutrition
 - **Journal par repas** (petit-déjeuner, déjeuner, dîner, collations) : un bloc par repas avec ses totaux, repliable.
+- **Planning de la semaine** (Recettes → Semaine) : recettes et repas types placés sur les jours, total de kcal prévu par jour, « Noter » le jour venu (le plat prévu apparaît aussi dans le repas sur l'accueil), liste de courses de la semaine sans ce qu'il y a déjà dans le frigo, copie de la semaine précédente.
+- **Mode sombre** : Profil → Apparence (comme le téléphone, clair ou sombre).
 - **Calendrier** : touche la date en haut de l'accueil pour aller à n'importe quel jour ; pastille de couleur selon l'objectif calorique, ⚖ les jours de pesée.
 - **Base Ciqual intégrée** : 3 341 aliments génériques officiels (Anses), disponibles hors ligne, recherche sans accents et mot à mot.
 - **Produits de marque** via Open Food Facts (recherche en ligne) et **scanner de codes-barres** (détecteur natif Android, ZXing en secours, lampe, photo, saisie manuelle des chiffres). Produit inconnu : ajout en un formulaire (étiquette lue par l'IA en option), retrouvé au scan suivant.
@@ -253,7 +255,15 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 nutrimaison/
 ├── src/
 │   ├── main.jsx               Point d'entrée React
-│   ├── App.jsx                Écrans principaux : accueil, ajout, recettes, profil
+│   ├── App.jsx                État global de l'app, navigation, enregistrement des données
+│   ├── version.js             Numéro de version (lu dans package.json)
+│   ├── foodData.js            Aliments, recettes intégrées, recherche, calculs (eau, macros, frigo)
+│   ├── views/
+│   │   ├── Dashboard.jsx      Accueil « Aujourd'hui » : anneau, eau, activité, repas
+│   │   ├── AddView.jsx        Ajouter : recherche, favoris, scanner, photo, texte IA
+│   │   ├── Recipes.jsx        Recettes, Mon frigo, détail, création
+│   │   ├── Planning.jsx       Planning de la semaine
+│   │   └── Profile.jsx        Profil, objectifs, rappels, sauvegarde, mises à jour
 │   ├── shared.jsx             Stockage, dates, calculs d'énergie, composants communs
 │   ├── ciqual.json            Table Ciqual compactée (généré, voir scripts/)
 │   ├── ciqualDb.js            Chargement à la demande et recherche Ciqual
@@ -263,6 +273,7 @@ nutrimaison/
 │   ├── MealTools.jsx          Copie de repas, repas types, produit inconnu au scan
 │   ├── Fridge.jsx             Mon frigo, idées de plats IA, liste de courses
 │   ├── Calendar.jsx           Calendrier du mois (accès direct à un jour)
+│   ├── planning.js            Planning : valeurs des plats prévus, courses de la semaine
 │   ├── backup.js              Sauvegarde, restauration, copie automatique dans Documents
 │   ├── updates.js             Vérification des nouvelles versions (Releases GitHub)
 │   ├── Weight.jsx             Poids, tendance, masse grasse, besoin réel
@@ -295,6 +306,7 @@ nutrimaison/
 | `workouts`, `sportSettings` | Séances faites, réglages et programmes perso |
 | `customFoods`, `customRecipes`, `favorites`, `mealTemplates` | Aliments, recettes, favoris et repas types perso |
 | `pantry`, `fridgeExtras`, `shoppingList` | Contenu du frigo et liste de courses |
+| `mealPlan`, `theme` | Planning de la semaine, apparence (clair / sombre / auto) |
 | `healthConnect`, `reminders`, `geminiModel` | Réglages et état des intégrations |
 | `autoBackup`, `updateCheck` | Copie automatique et vérification des versions (non inclus dans les sauvegardes) |
 

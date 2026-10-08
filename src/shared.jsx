@@ -52,23 +52,56 @@ export function dayKcal(day) {
 /* ---------------------------------------------------------------- */
 /* TOKENS                                                            */
 /* ---------------------------------------------------------------- */
-export const C = {
-  paper: "#F6F1E6",
-  paperDark: "#EFE7D6",
-  ink: "#20291F",
-  inkSoft: "#5B6459",
-  herb: "#2F4A3C",
-  herbLight: "#3F614F",
-  sage: "#DEE6D6",
-  ochre: "#C1922B",
-  ochreLight: "#F1E1B8",
-  berry: "#8C3A42",
-  berryLight: "#F2DEDD",
-  olive: "#6E7A3D",
-  oliveLight: "#E7EAD3",
-  card: "#FFFDF8",
-  line: "#DCD2BC",
+/* Couleurs : clair et sombre. Les composants utilisent C.xxx, qui pointe vers une variable CSS :
+   le thème change donc partout d'un coup, sans recharger. */
+export const THEME_LIGHT = {
+  paper: "#F6F1E6", paperDark: "#EFE7D6", ink: "#20291F", inkSoft: "#5B6459",
+  herb: "#2F4A3C", herbLight: "#3F614F", sage: "#DEE6D6",
+  ochre: "#C1922B", ochreLight: "#F1E1B8", berry: "#8C3A42", berryLight: "#F2DEDD",
+  olive: "#6E7A3D", oliveLight: "#E7EAD3", card: "#FFFDF8", line: "#DCD2BC",
+  onAccent: "#FFFFFF",            // texte posé sur un bouton/pastille de couleur
+  hero: "#2F4A3C", onHero: "#FFFFFF", // grands bandeaux verts (eau, bilan, séance)
 };
+export const THEME_DARK = {
+  paper: "#121813", paperDark: "#1B231D", ink: "#E6ECE3", inkSoft: "#A2AD9E",
+  herb: "#8CC5A3", herbLight: "#A9D6BB", sage: "#22342A",
+  ochre: "#E2B55A", ochreLight: "#3A301C", berry: "#EE959B", berryLight: "#3E2427",
+  olive: "#BCC77E", oliveLight: "#2A2F1C", card: "#1C251F", line: "#334036",
+  onAccent: "#0E1510",
+  hero: "#22392D", onHero: "#FFFFFF",
+};
+export const C = Object.fromEntries(Object.keys(THEME_LIGHT).map((k) => [k, `var(--nm-${k})`]));
+
+const vars = (t) => Object.entries(t).map(([k, v]) => `--nm-${k}:${v};`).join("");
+/** Feuille de style des thèmes : clair par défaut, sombre si choisi, ou si « automatique » et Android est en sombre. */
+export const THEME_CSS = `:root{${vars(THEME_LIGHT)}color-scheme:light;}
+:root[data-theme="dark"]{${vars(THEME_DARK)}color-scheme:dark;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${vars(THEME_DARK)}color-scheme:dark;}}
+html,body{background:var(--nm-paper);color:var(--nm-ink);}
+input,textarea,select{background-color:var(--nm-card);color:var(--nm-ink);border-color:var(--nm-line);}
+input::placeholder,textarea::placeholder{color:var(--nm-inkSoft);opacity:.8;}`;
+
+/** Thème choisi : "auto" (suit Android), "light" ou "dark". */
+export function loadThemePref() {
+  try { return localStorage.getItem("theme") || "auto"; } catch (e) { return "auto"; }
+}
+export function applyTheme(pref) {
+  const p = pref === "light" || pref === "dark" ? pref : "auto";
+  try { localStorage.setItem("theme", p); } catch (e) {}
+  const root = document.documentElement;
+  if (p === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", p);
+  const dark = p === "dark" || (p === "auto" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? THEME_DARK.paper : THEME_LIGHT.herb);
+}
+export function installTheme() {
+  if (!document.getElementById("nm-theme")) {
+    const st = document.createElement("style"); st.id = "nm-theme"; st.textContent = THEME_CSS;
+    document.head.appendChild(st);
+  }
+  applyTheme(loadThemePref());
+  try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(loadThemePref())); } catch (e) {}
+}
 
 export const MONO = "'IBM Plex Mono',monospace";
 export const SERIF = "'Fraunces',serif";
@@ -186,7 +219,7 @@ export function Card({ children, style, onClick }) {
 
 export function Btn({ children, onClick, kind = "primary", style, disabled }) {
   const kinds = {
-    primary: { background: C.herb, color: "#fff", border: "none" },
+    primary: { background: C.herb, color: C.onAccent, border: "none" },
     ghost: { background: "transparent", color: C.herb, border: `1.5px solid ${C.herb}` },
     soft: { background: C.sage, color: C.herb, border: "none" },
     danger: { background: C.berryLight, color: C.berry, border: "none" },
@@ -205,14 +238,14 @@ export function Chip({ active, children, onClick, style }) {
     <button onClick={onClick} style={{
       padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap",
       border: `1px solid ${active ? C.herb : C.line}`, background: active ? C.herb : C.card,
-      color: active ? "#fff" : C.ink, ...style,
+      color: active ? C.onAccent : C.ink, ...style,
     }}>{children}</button>
   );
 }
 
 export const inputStyle = {
   width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.line}`,
-  fontFamily: MONO, fontSize: 14, background: "#fff", color: C.ink,
+  fontFamily: MONO, fontSize: 14, background: C.card, color: C.ink,
 };
 
 export function BackHeader({ title, onBack, right }) {

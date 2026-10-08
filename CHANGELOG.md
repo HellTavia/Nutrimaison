@@ -1,5 +1,17 @@
 # Historique des versions
 
+## 2.14.0
+- **Mode sombre** : Profil → Apparence, « Comme le téléphone », « Clair » ou « Sombre ». Toutes les couleurs passent par un seul jeu de variables.
+- **Planning de la semaine** (Recettes → Semaine) : placer des recettes (avec le nombre de portions) ou des repas types sur les jours, total prévu par jour comparé à l'objectif, « Noter » pour l'ajouter au journal, « Recopier la semaine précédente ».
+- Le plat prévu apparaît dans le repas concerné sur l'accueil, avec un bouton « Noter ».
+- « Courses pour la semaine » : ingrédients des plats prévus additionnés (en grammes), sans le sel/huile/épices ni ce qui est déjà dans « Mon frigo ».
+- Détail d'une recette : bouton « Planifier un autre jour ».
+- Android : thème « DayNight » (relancer `node scripts/patch-android.mjs`) pour que « Comme le téléphone » suive le mode sombre d'Android.
+
+## 2.13.0
+- Code réorganisé : le fichier principal (3 500 lignes) est découpé en écrans (`src/views/`) et en données (`src/foodData.js`). Aucun changement visible, base plus sûre pour le mode sombre et le planning.
+- Première version qui déclenche l'alerte « nouvelle version » chez ceux qui ont la 2.12.0.
+
 ## 2.12.0
 - Copie de sécurité automatique dans **Documents/NutriMaison** (chaque semaine ou chaque jour, les 4 dernières gardées). Elle survit à « Effacer les données » et à la désinstallation. Bouton « Sauvegarder maintenant ».
 - Restauration depuis un fichier .json (en plus du copier-coller).

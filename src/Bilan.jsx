@@ -80,7 +80,7 @@ export function BilanView({ days, goals, workouts, weightStats, onBack }) {
         <button onClick={() => !isCurrent && setWs(addDays(ws, 7))} style={{ ...navBtn, opacity: isCurrent ? 0.3 : 1 }}><ChevronRight size={18} /></button>
       </div>
 
-      <Card style={{ background: C.herb, border: "none", color: "#fff" }}>
+      <Card style={{ background: C.hero, border: "none", color: C.onHero }}>
         <p style={{ margin: 0, fontSize: 11.5, color: "#BFD3C6", textTransform: "uppercase", letterSpacing: 0.6 }}>En résumé</p>
         <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.55 }}>{verdict}</p>
       </Card>
