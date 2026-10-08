@@ -6,6 +6,7 @@ import {
   Trash2, BookOpen, User, Home, Loader2, Minus, ChefHat, Wallet, Salad, ShoppingBag, Calculator, ScanLine, Eye, EyeOff, Sparkles, Dumbbell, Scale, Footprints, Flame, Download, Upload, Pencil, MoreHorizontal, ChevronDown
 } from "lucide-react";
 import { MealActions, NewProductForm, Per100Fields } from "./MealTools.jsx";
+import { CalendarSheet } from "./Calendar.jsx";
 import { FridgeInput, FridgeAi, ShoppingList, addToShopping } from "./Fridge.jsx";
 import { startLiveScan, decodeImageFile, openCamera } from "./scanner.js";
 import { geminiGenerate, parseJSONLoose, clearGeminiModelCache, resolveGeminiModel, shrinkImage } from "./gemini.js";
@@ -1336,7 +1337,7 @@ export default function App() {
             onOpenAdd={openAdd} onDeleteEntry={deleteEntry} onChangeWater={changeWater} onEditEntry={editEntry}
             yesterday={allDays[addDays(currentDate, -1)]} onCopyMeal={(meal) => copyMealFrom(addDays(currentDate, -1), meal)}
             favorites={favorites} onToggleFavorite={toggleFavorite}
-            allDays={allDays} mealTemplates={mealTemplates}
+            allDays={allDays} weights={weights} mealTemplates={mealTemplates}
             onCopyIn={copyEntriesIn} onCopyTo={copyEntriesTo} onClearMeal={clearMeal} onScaleMeal={scaleMeal}
             onSaveTemplate={saveMealTemplate} onDeleteTemplate={deleteMealTemplate} onAddTemplate={addMealTemplate}
             activity={activity} sportSettings={sportSettings} onSetSteps={setSteps}
@@ -1464,11 +1465,12 @@ export default function App() {
 /* ---------------------------------------------------------------- */
 function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpenAdd, onDeleteEntry, onChangeWater, onEditEntry,
   yesterday, onCopyMeal, favorites, onToggleFavorite,
-  allDays, mealTemplates, onCopyIn, onCopyTo, onSaveTemplate, onDeleteTemplate, onAddTemplate, onClearMeal, onScaleMeal,
+  allDays, weights, mealTemplates, onCopyIn, onCopyTo, onSaveTemplate, onDeleteTemplate, onAddTemplate, onClearMeal, onScaleMeal,
   activity, sportSettings, onSetSteps, weightStats, bodyFat, onOpenSport, onOpenBody, onOpenBilan }) {
   const isToday = currentDate === todayISO();
   const [editing, setEditing] = useState(null); // "meal:id"
   const [mealMenu, setMealMenu] = useState(null);
+  const [calOpen, setCalOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => loadJSON("collapsedMeals", {}));
   const toggleCollapsed = (m) => { const n = { ...collapsed, [m]: !collapsed[m] }; setCollapsed(n); saveJSON("collapsedMeals", n); };
   const [waterOpen, setWaterOpen] = useState(false);
@@ -1482,12 +1484,13 @@ function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpen
         <button onClick={() => setCurrentDate(addDays(currentDate, -1))} style={{ background: "none", border: "none", padding: 8, color: C.herb }}>
           <ChevronLeft size={20} />
         </button>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 17, color: C.ink }}>
-            {isToday ? "Aujourd'hui" : frDate(currentDate)}
+        <button onClick={() => setCalOpen(true)} aria-label="Ouvrir le calendrier" style={{ textAlign: "center", background: "none", border: "none", padding: "2px 8px", color: C.ink }}>
+          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 17, color: C.ink, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            {isToday ? "Aujourd'hui" : frDate(currentDate)} <ChevronDown size={15} color={C.inkSoft} />
           </p>
-          {isToday && <p style={{ margin: 0, fontSize: 12, color: C.inkSoft }}>{frDate(currentDate)}</p>}
-        </div>
+          {isToday ? <p style={{ margin: 0, fontSize: 12, color: C.inkSoft }}>{frDate(currentDate)}</p>
+            : <p style={{ margin: 0, fontSize: 11.5, color: C.herb, fontWeight: 600 }}>Calendrier · revenir à aujourd'hui</p>}
+        </button>
         <button onClick={() => setCurrentDate(addDays(currentDate, 1))} style={{ background: "none", border: "none", padding: 8, color: C.herb }}>
           <ChevronRight size={20} />
         </button>
@@ -1663,6 +1666,10 @@ function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpen
           </div>
         );
       })}
+      {calOpen && (
+        <CalendarSheet currentDate={currentDate} allDays={allDays} weights={weights} goalKcal={goals.kcal}
+          onPick={setCurrentDate} onClose={() => setCalOpen(false)} />
+      )}
       {mealMenu && (
         <MealActions meal={mealMenu} items={dayData.meals[mealMenu]} currentDate={currentDate} allDays={allDays}
           labels={MEAL_LABELS} order={MEAL_ORDER} templates={mealTemplates}

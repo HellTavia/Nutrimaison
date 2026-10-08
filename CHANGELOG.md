@@ -1,5 +1,8 @@
 # Historique des versions
 
+## 2.11.0
+- Calendrier : toucher « Aujourd'hui » (ou la date affichée) ouvre le mois. Chaque jour noté a une pastille (dans l'objectif, un peu au-dessus, au-dessus, journée partielle), ⚖ marque les pesées, moyenne du mois, bouton « Revenir à aujourd'hui ».
+
 ## 2.10.2
 - Onglets des recettes (et autres rangées de choix : repas, catégories du sport…) : tous visibles, ils passent à la ligne au lieu de dépasser de l'écran.
 

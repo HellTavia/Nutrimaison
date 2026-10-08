@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.10.2-C1922B" alt="Version 2.10.2">
+  <img src="https://img.shields.io/badge/version-2.11.0-C1922B" alt="Version 2.11.0">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
@@ -46,6 +46,7 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 
 ### Nutrition
 - **Journal par repas** (petit-déjeuner, déjeuner, dîner, collations) : un bloc par repas avec ses totaux, repliable.
+- **Calendrier** : touche la date en haut de l'accueil pour aller à n'importe quel jour ; pastille de couleur selon l'objectif calorique, ⚖ les jours de pesée.
 - **Base Ciqual intégrée** : 3 341 aliments génériques officiels (Anses), disponibles hors ligne, recherche sans accents et mot à mot.
 - **Produits de marque** via Open Food Facts (recherche en ligne) et **scanner de codes-barres** (détecteur natif Android, ZXing en secours, lampe, photo, saisie manuelle des chiffres). Produit inconnu : ajout en un formulaire (étiquette lue par l'IA en option), retrouvé au scan suivant.
 - **Photo d'un repas** analysée par IA (Gemini, optionnel) ou détection locale (TensorFlow.js).
@@ -260,6 +261,7 @@ nutrimaison/
 │   ├── AiMeal.jsx             Onglet « Texte IA » et estimation d'un aliment
 │   ├── MealTools.jsx          Copie de repas, repas types, produit inconnu au scan
 │   ├── Fridge.jsx             Mon frigo, idées de plats IA, liste de courses
+│   ├── Calendar.jsx           Calendrier du mois (accès direct à un jour)
 │   ├── Weight.jsx             Poids, tendance, masse grasse, besoin réel
 │   ├── Bilan.jsx              Bilan de la semaine
 │   ├── Sport.jsx              Onglet Sport : programmes, séance guidée, historique
