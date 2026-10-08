@@ -1,7 +1,7 @@
 {
   "name": "nutrimaison",
   "private": true,
-  "version": "2.11.0",
+  "version": "2.12.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +21,8 @@
     "@tensorflow/tfjs": "^4.20.0",
     "@tensorflow-models/coco-ssd": "^2.2.3",
     "@tensorflow-models/mobilenet": "^2.1.1",
-    "@capacitor/local-notifications": "^6.1.0"
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/filesystem": "^6.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

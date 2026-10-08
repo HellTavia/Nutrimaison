@@ -192,6 +192,10 @@ edit(path.join("app", "src", "main", "AndroidManifest.xml"), (s) => {
   ];
   let add = "";
   perms.forEach((p) => { if (!s.includes(`"${p}"`)) add += `    <uses-permission android:name="${p}" />\n`; });
+  // copie automatique dans Documents : autorisation utile seulement jusqu'à Android 10
+  if (!s.includes("android.permission.WRITE_EXTERNAL_STORAGE")) {
+    add += `    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />\n`;
+  }
   if (!s.includes("com.google.android.apps.healthdata")) {
     add += `    <queries>
         <package android:name="com.google.android.apps.healthdata" />

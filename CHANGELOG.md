@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 2.12.0
+- Copie de sécurité automatique dans **Documents/NutriMaison** (chaque semaine ou chaque jour, les 4 dernières gardées). Elle survit à « Effacer les données » et à la désinstallation. Bouton « Sauvegarder maintenant ».
+- Restauration depuis un fichier .json (en plus du copier-coller).
+- Nouvelles versions : l'app vérifie une fois par jour les Releases GitHub et affiche un bandeau « NutriMaison X.Y.Z est disponible » avec téléchargement direct de l'APK. Carte **Profil → Mises à jour** (désactivable, vérification manuelle, notes de version).
+- Nouvelle dépendance `@capacitor/filesystem` : relancer `setup.bat` (ou `npm install` puis `npx cap sync`) une fois.
+
 ## 2.11.0
 - Calendrier : toucher « Aujourd'hui » (ou la date affichée) ouvre le mois. Chaque jour noté a une pastille (dans l'objectif, un peu au-dessus, au-dessus, journée partielle), ⚖ marque les pesées, moyenne du mois, bouton « Revenir à aujourd'hui ».
 

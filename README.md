@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.11.0-C1922B" alt="Version 2.11.0">
+  <img src="https://img.shields.io/badge/version-2.12.0-C1922B" alt="Version 2.12.0">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
@@ -167,6 +167,7 @@ La façon la plus simple, sans rien installer sur un ordinateur.
 
 **Mettre à jour** : télécharge la nouvelle version et installe-la par-dessus l'ancienne, tes données sont conservées. Par précaution, fais d'abord **Profil → Sauvegarde → Exporter**.
 
+
 > ⚠️ Une mise à jour ne s'installe par-dessus que si elle est signée avec la **même clé**. Si tu passes de l'APK des Releases à une version que tu as compilée toi-même (ou l'inverse), Android refusera : exporte tes données, désinstalle, installe la nouvelle version, puis restaure (**Profil → Sauvegarde → Restaurer**).
 
 ## Compiler depuis les sources
@@ -226,7 +227,7 @@ node scripts/patch-android.mjs
 npx cap sync
 ```
 
-Recompiler **sur le même PC** (même clé de signature debug) et installer par-dessus l'ancienne version. Par sécurité : **Profil → Sauvegarde → Exporter** avant.
+Recompiler **sur le même PC** (même clé de signature debug) et installer par-dessus l'ancienne version. Par sécurité : **Profil → Sauvegarde → Sauvegarder maintenant** (ou Exporter) avant.
 
 Pour installer sans l'avertissement Play Protect, passer par ADB :
 
@@ -262,6 +263,8 @@ nutrimaison/
 │   ├── MealTools.jsx          Copie de repas, repas types, produit inconnu au scan
 │   ├── Fridge.jsx             Mon frigo, idées de plats IA, liste de courses
 │   ├── Calendar.jsx           Calendrier du mois (accès direct à un jour)
+│   ├── backup.js              Sauvegarde, restauration, copie automatique dans Documents
+│   ├── updates.js             Vérification des nouvelles versions (Releases GitHub)
 │   ├── Weight.jsx             Poids, tendance, masse grasse, besoin réel
 │   ├── Bilan.jsx              Bilan de la semaine
 │   ├── Sport.jsx              Onglet Sport : programmes, séance guidée, historique
@@ -293,6 +296,11 @@ nutrimaison/
 | `customFoods`, `customRecipes`, `favorites`, `mealTemplates` | Aliments, recettes, favoris et repas types perso |
 | `pantry`, `fridgeExtras`, `shoppingList` | Contenu du frigo et liste de courses |
 | `healthConnect`, `reminders`, `geminiModel` | Réglages et état des intégrations |
+| `autoBackup`, `updateCheck` | Copie automatique et vérification des versions (non inclus dans les sauvegardes) |
+
+### Copie de sécurité automatique
+
+Au démarrage, si la dernière copie date de plus de 7 jours (ou 1 jour, au choix dans **Profil → Sauvegarde**), l'app écrit une sauvegarde complète dans **Documents/NutriMaison/** du téléphone et garde les 4 plus récentes. Ce dossier n'appartient pas à l'app : il reste après « Effacer les données » ou une désinstallation. Pour restaurer : **Profil → Sauvegarde → Restaurer → Choisir un fichier**.
 
 ## Publier une version (APK)
 
@@ -309,6 +317,8 @@ Pour le mainteneur du dépôt :
    ```
 3. Renommer `android/app/build/outputs/apk/debug/app-debug.apk` en `nutrimaison-vX.Y.Z.apk`.
 4. Créer une **Release** avec le tag `vX.Y.Z`, y joindre l'APK et coller la partie du CHANGELOG correspondante.
+
+Les apps installées interrogent `https://api.github.com/repos/HellTavia/Nutrimaison/releases/latest` (une fois par jour au plus) : dès que la Release est **publiée** (pas en brouillon ni en pré-version), elles affichent « NutriMaison X.Y.Z est disponible » avec un bouton qui télécharge directement le premier fichier `.apk` joint. Le texte de la Release est montré dans **Profil → Mises à jour**. Pour un fork, changer `REPO` dans `src/updates.js`.
 
 **Toujours compiler avec la même clé de signature.** Sinon les utilisateurs ne pourront pas mettre à jour sans désinstaller. La clé debug est dans `~/.android/debug.keystore` (Windows : `C:\Users\<toi>\.android\debug.keystore`) : sauvegarde-la. Elle n'est **jamais** à mettre dans le dépôt.
 
@@ -354,6 +364,7 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 ## Confidentialité
 
 - Pas de compte, pas de serveur, pas de statistiques d'usage.
+- Vérification des versions : une lecture de la page publique des Releases GitHub, une fois par jour, sans aucune donnée envoyée (désactivable dans **Profil → Mises à jour**).
 - La clé Gemini reste sur le téléphone. Avec une clé, les photos et textes analysés sont envoyés à Google pour l'analyse, et rien d'autre.
 - Health Connect : les données restent sur l'appareil, et l'accès se retire à tout moment dans les paramètres Android.
 

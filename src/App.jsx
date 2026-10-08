@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { MealActions, NewProductForm, Per100Fields } from "./MealTools.jsx";
 import { CalendarSheet } from "./Calendar.jsx";
+import { buildBackup, restoreBackup, loadAutoBackup, saveAutoBackup, autoBackupAvailable, writeBackupFile, maybeAutoBackup } from "./backup.js";
+import { checkForUpdate, loadUpdateState, saveUpdateState, openExternal, REPO_URL } from "./updates.js";
 import { FridgeInput, FridgeAi, ShoppingList, addToShopping } from "./Fridge.jsx";
 import { startLiveScan, decodeImageFile, openCamera } from "./scanner.js";
 import { geminiGenerate, parseJSONLoose, clearGeminiModelCache, resolveGeminiModel, shrinkImage } from "./gemini.js";
@@ -670,6 +672,17 @@ export default function App() {
   }
   const currentDateRef = useRef(currentDate);
   currentDateRef.current = currentDate;
+  /* ---- Copie de sécurité automatique et nouvelles versions (au démarrage, sans bloquer) ---- */
+  const [update, setUpdate] = useState(null);
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => {
+      maybeAutoBackup();
+      checkForUpdate(APP_VERSION).then(setUpdate).catch(() => {});
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [ready]);
+
   useEffect(() => {
     if (!ready) return;
     syncReminders();
@@ -1338,6 +1351,8 @@ export default function App() {
             yesterday={allDays[addDays(currentDate, -1)]} onCopyMeal={(meal) => copyMealFrom(addDays(currentDate, -1), meal)}
             favorites={favorites} onToggleFavorite={toggleFavorite}
             allDays={allDays} weights={weights} mealTemplates={mealTemplates}
+            update={update && loadUpdateState().dismissed !== update.version ? update : null}
+            onDismissUpdate={() => { saveUpdateState({ ...loadUpdateState(), dismissed: update?.version }); setUpdate(null); }}
             onCopyIn={copyEntriesIn} onCopyTo={copyEntriesTo} onClearMeal={clearMeal} onScaleMeal={scaleMeal}
             onSaveTemplate={saveMealTemplate} onDeleteTemplate={deleteMealTemplate} onAddTemplate={addMealTemplate}
             activity={activity} sportSettings={sportSettings} onSetSteps={setSteps}
@@ -1465,7 +1480,7 @@ export default function App() {
 /* ---------------------------------------------------------------- */
 function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpenAdd, onDeleteEntry, onChangeWater, onEditEntry,
   yesterday, onCopyMeal, favorites, onToggleFavorite,
-  allDays, weights, mealTemplates, onCopyIn, onCopyTo, onSaveTemplate, onDeleteTemplate, onAddTemplate, onClearMeal, onScaleMeal,
+  allDays, weights, update, onDismissUpdate, mealTemplates, onCopyIn, onCopyTo, onSaveTemplate, onDeleteTemplate, onAddTemplate, onClearMeal, onScaleMeal,
   activity, sportSettings, onSetSteps, weightStats, bodyFat, onOpenSport, onOpenBody, onOpenBilan }) {
   const isToday = currentDate === todayISO();
   const [editing, setEditing] = useState(null); // "meal:id"
@@ -1495,6 +1510,19 @@ function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpen
           <ChevronRight size={20} />
         </button>
       </div>
+
+      {update && (
+        <div style={{ background: C.ochreLight, border: `1.5px solid ${C.ochre}`, borderRadius: 14, padding: "10px 12px", margin: "-8px 0 16px" }}>
+          <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600 }}>🎉 NutriMaison {update.version} est disponible</p>
+          <p style={{ margin: "2px 0 8px", fontSize: 11.5, color: C.inkSoft }}>Tu as la {APP_VERSION}. Installe la nouvelle par-dessus : tes données sont conservées.</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => openExternal(update.apkUrl || update.url)} style={{ flex: 2, padding: "9px 0", borderRadius: 10, border: "none", background: C.herb, color: "#fff", fontWeight: 600, fontSize: 12.5 }}>
+              {update.apkUrl ? "Télécharger l'APK" : "Voir la version"}
+            </button>
+            <button onClick={onDismissUpdate} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, fontSize: 12.5 }}>Plus tard</button>
+          </div>
+        </div>
+      )}
 
       {/* Anneau calories */}
       <div style={{
@@ -3140,6 +3168,8 @@ function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, sportSet
 
       <BackupCard />
 
+      <UpdateCard />
+
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Sparkles size={16} color={C.herb} />
@@ -3270,53 +3300,128 @@ function BackupCard() {
   const [mode, setMode] = useState(null);
   const [text, setText] = useState("");
   const [msg, setMsg] = useState("");
+  const [auto, setAuto] = useState(loadAutoBackup);
+  const [busy, setBusy] = useState(false);
+  const native = autoBackupAvailable();
+  const updAuto = (n) => { setAuto(n); saveAutoBackup(n); };
   function exportData() {
-    const data = {};
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      data[k] = window.localStorage.getItem(k);
-    }
-    const json = JSON.stringify({ app: "NutriMaison", version: 2, date: new Date().toISOString(), data });
+    const json = buildBackup();
     setText(json); setMode("export"); setMsg("");
     try { navigator.clipboard && navigator.clipboard.writeText(json).then(() => setMsg("Copié dans le presse-papiers ✓ — colle-le dans une note, un mail à toi-même ou un fichier."), () => {}); } catch (e) {}
   }
-  function importData() {
+  function doRestore(t) {
     try {
-      const obj = JSON.parse(text.trim());
-      if (!obj || obj.app !== "NutriMaison" || !obj.data) throw new Error();
-      Object.entries(obj.data).forEach(([k, v]) => window.localStorage.setItem(k, v));
-      // Health Connect : la sauvegarde peut venir d'une autre installation (ou de l'ancien identifiant d'app).
-      // On oublie ce qui avait été « envoyé » pour que tout soit renvoyé proprement par cette installation.
-      try {
-        const hc = JSON.parse(window.localStorage.getItem("healthConnect") || "null");
-        if (hc) { hc.sent = {}; hc.lastSync = null; window.localStorage.setItem("healthConnect", JSON.stringify(hc)); }
-      } catch (e) {}
+      restoreBackup(t);
       setMsg("Données restaurées ✓ — l'app va redémarrer.");
       setTimeout(() => window.location.reload(), 900);
-    } catch (e) { setMsg("Texte de sauvegarde invalide."); }
+    } catch (e) { setMsg(e?.message && !/JSON/.test(e.message) ? e.message : "Sauvegarde illisible."); }
   }
+  async function saveNow() {
+    setBusy(true); setMsg("");
+    try {
+      const file = await writeBackupFile();
+      updAuto({ ...loadAutoBackup(), last: new Date().toISOString(), lastFile: file, lastError: null });
+      setMsg("Sauvegardé ✓ " + file);
+    } catch (e) {
+      updAuto({ ...loadAutoBackup(), lastError: String(e?.message || e) });
+      setMsg("Échec : " + (e?.message || e));
+    }
+    setBusy(false);
+  }
+  const lastTxt = auto.last ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(auto.last)) : null;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
       <p style={{ margin: "0 0 6px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Sauvegarde des données</p>
       <p style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 10px" }}>
-        Tout est stocké sur ce téléphone. Fais une sauvegarde avant de réinstaller l'app ou de changer d'appareil.
+        Tout est stocké sur ce téléphone. {native ? "Une copie automatique est rangée dans le dossier Documents/NutriMaison : elle reste même si l'app est désinstallée." : "Fais une sauvegarde avant de réinstaller l'app ou de changer d'appareil."}
       </p>
+      {native && (
+        <div style={{ background: C.paperDark, borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
+          <Toggle checked={auto.on} onChange={(v) => updAuto({ ...auto, on: v })} label="Copie automatique"
+            sub="Au démarrage de l'app, les 4 dernières sont gardées." />
+          {auto.on && (
+            <div style={{ display: "flex", gap: 6, margin: "8px 0 4px" }}>
+              {[[1, "Chaque jour"], [7, "Chaque semaine"]].map(([d, l]) => (
+                <button key={d} onClick={() => updAuto({ ...auto, everyDays: d })} style={{
+                  flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12, fontWeight: 600, border: `1px solid ${auto.everyDays === d ? C.herb : C.line}`,
+                  background: auto.everyDays === d ? C.herb : C.card, color: auto.everyDays === d ? "#fff" : C.ink,
+                }}>{l}</button>
+              ))}
+            </div>
+          )}
+          <p style={{ fontSize: 11, color: auto.lastError ? C.berry : C.inkSoft, margin: "6px 0 0", lineHeight: 1.45 }}>
+            {auto.lastError ? `Dernier essai raté : ${auto.lastError}` : lastTxt ? `Dernière copie : ${lastTxt} — ${auto.lastFile}` : "Aucune copie pour l'instant."}
+          </p>
+          <button onClick={saveNow} disabled={busy} style={{ ...profileLinkBtn, width: "100%", marginTop: 8, background: C.card, border: `1px solid ${C.herb}` }}>
+            {busy ? "Sauvegarde…" : "Sauvegarder maintenant"}
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportData} style={profileLinkBtn}><Download size={14} style={{ verticalAlign: -2 }} /> Exporter</button>
-        <button onClick={() => { setMode("import"); setText(""); setMsg(""); }} style={profileLinkBtn}><Upload size={14} style={{ verticalAlign: -2 }} /> Restaurer</button>
+        <button onClick={() => { setMode(mode === "import" ? null : "import"); setText(""); setMsg(""); }} style={profileLinkBtn}><Upload size={14} style={{ verticalAlign: -2 }} /> Restaurer</button>
       </div>
-      {mode && (
+      {mode === "import" && (
         <div style={{ marginTop: 10 }}>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} readOnly={mode === "export"} rows={5}
+          <label style={{ ...profileLinkBtn, display: "block", textAlign: "center", background: C.herb, color: "#fff", cursor: "pointer" }}>
+            Choisir un fichier de sauvegarde (.json)
+            <input type="file" accept="application/json,.json,text/plain" style={{ display: "none" }}
+              onChange={async (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) doRestore(await f.text()); }} />
+          </label>
+          <p style={{ fontSize: 11, color: C.inkSoft, margin: "6px 0" }}>{native ? "Les copies automatiques sont dans Documents › NutriMaison. " : ""}Ou colle le texte d'une sauvegarde :</p>
+        </div>
+      )}
+      {mode && (
+        <div style={{ marginTop: mode === "export" ? 10 : 0 }}>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} readOnly={mode === "export"} rows={mode === "export" ? 5 : 3}
             placeholder="Colle ici le texte de sauvegarde"
             onFocus={(e) => mode === "export" && e.target.select()}
             style={{ ...inputStyle, fontSize: 11, resize: "vertical" }} />
           {mode === "import" && (
-            <button onClick={importData} disabled={!text.trim()} style={{ ...profileLinkBtn, width: "100%", marginTop: 8, background: C.herb, color: "#fff" }}>Restaurer ces données</button>
+            <button onClick={() => doRestore(text)} disabled={!text.trim()} style={{ ...profileLinkBtn, width: "100%", marginTop: 8, background: C.herb, color: "#fff", opacity: text.trim() ? 1 : 0.5 }}>Restaurer ce texte</button>
           )}
         </div>
       )}
-      {msg && <p style={{ fontSize: 12, color: C.herb, margin: "8px 0 0" }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 12, color: /Échec|illisible|n'est pas/.test(msg) ? C.berry : C.herb, margin: "8px 0 0", wordBreak: "break-word" }}>{msg}</p>}
+    </div>
+  );
+}
+
+/** Version installée et vérification des nouvelles versions sur GitHub. */
+function UpdateCard() {
+  const [st, setSt] = useState(loadUpdateState);
+  const [res, setRes] = useState(null); // {busy} | {latest} | {upToDate} | {error}
+  async function check() {
+    setRes({ busy: true });
+    try {
+      const latest = await checkForUpdate(APP_VERSION, { force: true });
+      setSt(loadUpdateState());
+      setRes(latest ? { latest } : { upToDate: true, v: loadUpdateState().latest?.version });
+    } catch (e) { setRes({ error: e?.message || "erreur" }); }
+  }
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+      <p style={{ margin: "0 0 6px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Mises à jour</p>
+      <p style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 8px" }}>
+        Version installée : <b style={{ color: C.ink }}>{APP_VERSION}</b>. Les nouvelles versions sont publiées sur GitHub.
+      </p>
+      <Toggle checked={st.on} onChange={(v) => { const n = { ...loadUpdateState(), on: v }; saveUpdateState(n); setSt(n); }}
+        label="Me prévenir des nouvelles versions" sub="Vérifie une fois par jour (lecture de la page publique du projet, rien n'est envoyé)." />
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button onClick={check} disabled={res?.busy} style={profileLinkBtn}>{res?.busy ? "Vérification…" : "Vérifier maintenant"}</button>
+        <button onClick={() => openExternal(REPO_URL + "/releases")} style={profileLinkBtn}>Toutes les versions</button>
+      </div>
+      {res?.upToDate && <p style={{ fontSize: 12, color: C.herb, margin: "8px 0 0" }}>✓ Tu as la dernière version{res.v ? ` (dernière publiée : ${res.v})` : ""}.</p>}
+      {res?.error && <p style={{ fontSize: 12, color: C.berry, margin: "8px 0 0" }}>Vérification impossible : {res.error}</p>}
+      {res?.latest && (
+        <div style={{ marginTop: 10, background: C.ochreLight, borderRadius: 12, padding: 10 }}>
+          <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>Version {res.latest.version} disponible</p>
+          {res.latest.notes && <p style={{ margin: "0 0 8px", fontSize: 11.5, color: C.inkSoft, whiteSpace: "pre-wrap", maxHeight: 140, overflow: "auto" }}>{res.latest.notes}</p>}
+          <button onClick={() => openExternal(res.latest.apkUrl || res.latest.url)} style={{ ...profileLinkBtn, width: "100%", background: C.herb, color: "#fff" }}>
+            {res.latest.apkUrl ? "Télécharger l'APK" : "Ouvrir la page de la version"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
