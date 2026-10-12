@@ -243,7 +243,7 @@ async function pullReads(s, log) {
         // métabolisme de base compté sur la journée entière (comme l'appli Withings), activité jusqu'à maintenant
         const r = await HealthBridge.caloriesBySource({ start, end, basalEnd: dayStart(addDays(d, 1)) });
         const k = (v) => (v != null && v > 0 ? Math.round(v) : undefined);
-        bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal) }))
+        bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal), ...(x.lastActiveAt ? { lastAt: x.lastActiveAt } : {}) }))
           .filter((x) => x.active || x.total || x.basal);
       } catch (e) { bySource = undefined; }
     }

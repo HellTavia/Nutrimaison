@@ -2,10 +2,10 @@
 // Copyright (C) 2026 Les auteurs de NutriMaison
 /* Profil : objectifs, rappels, Health Connect, sauvegarde, mises à jour */
 import React, { useState, useEffect } from "react";
-import { Calculator, Download, Eye, EyeOff, Flame, Scale, Sparkles, Upload } from "lucide-react";
+import { Calculator, Download, Eye, EyeOff, Flame, RefreshCw, Scale, Sparkles, Upload } from "lucide-react";
 import { autoBackupAvailable, buildBackup, loadAutoBackup, restoreBackup, saveAutoBackup, writeBackupFile } from "../backup.js";
 import { REPO_URL, checkForUpdate, loadUpdateState, openExternal, saveUpdateState } from "../updates.js";
-import { clearGeminiModelCache, resolveGeminiModel } from "../gemini.js";
+import { clearGeminiModelCache, geminiModelOrder, getCachedGeminiModelList, getGeminiModelPref, refreshGeminiModelList, setGeminiModelPref } from "../gemini.js";
 import { applyTheme, loadThemePref, C, NumInput, SectionTitle, Tag, bmrMifflin, inputStyle, round, stepsKcal } from "../shared.jsx";
 import { Toggle, plannedWeeklySportKcal } from "../Sport.jsx";
 import { HealthConnectCard } from "../HealthConnectCard.jsx";
@@ -78,7 +78,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     setKeyTest({ loading: true });
     try {
       clearGeminiModelCache();
-      const model = await resolveGeminiModel(key);
+      const model = (await geminiModelOrder(key))[0];
       setKeyTest({ ok: true, text: "Clé valide ✓ — modèle utilisé : " + model });
     } catch (e) {
       setKeyTest({ ok: false, text: "Échec : " + e.message });
@@ -288,11 +288,11 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Sparkles size={16} color={C.herb} />
-          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Détection photo par IA (optionnel)</p>
+          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Intelligence artificielle Gemini (optionnel)</p>
         </div>
         <p style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 12px" }}>
-          Sans clé, l'onglet Photo utilise une détection locale limitée (gratuite, hors-ligne). Colle
-          ici une clé Gemini gratuite pour une reconnaissance bien plus précise — obtenue en 2 minutes
+          Une clé Gemini gratuite active les fonctions IA : photo d'un repas, lecture d'étiquette, idées du
+          frigo, Texte IA, coach sport (sans clé, la photo utilise une détection locale limitée). Elle s'obtient en 2 minutes
           sur <strong>aistudio.google.com</strong>, sans carte bancaire. Tant que tu n'actives pas la
           facturation sur ce projet Google, l'usage ne peut jamais te coûter d'argent : au-delà du
           quota gratuit, les requêtes échouent simplement, elles ne sont jamais facturées.
@@ -318,9 +318,11 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
         {keyTest && !keyTest.loading && (
           <p style={{ fontSize: 12, margin: "8px 0 0", color: keyTest.ok ? C.herb : C.berry, lineHeight: 1.45 }}>{keyTest.text}</p>
         )}
+        <GeminiModelPicker apiKey={(info.geminiApiKey || "").replace(/\s+/g, "")} />
         <p style={{ fontSize: 11, color: C.inkSoft, margin: "10px 0 0", lineHeight: 1.5 }}>
+          Clé gratuite sur <strong>aistudio.google.com</strong>, bouton « Get API key ».
           Cette clé reste uniquement sur ton téléphone, dans le stockage local de l'app — elle n'est
-          jamais envoyée à un serveur autre que Google (pour l'analyse photo elle-même).
+          jamais envoyée à un serveur autre que Google.
         </p>
       </div>
 
@@ -363,6 +365,59 @@ export const profileLinkBtn = {
 };
 
 /** Rappels du soir (si rien n'est noté) et du matin (pesée). */
+/* Choix du modèle Gemini : automatique, ou un modèle précis pris dans la liste de la clé. */
+function GeminiModelPicker({ apiKey }) {
+  const [pref, setPref] = useState(getGeminiModelPref);
+  const [list, setList] = useState(() => getCachedGeminiModelList(apiKey));
+  const [state, setState] = useState(null);
+  useEffect(() => setList(getCachedGeminiModelList(apiKey)), [apiKey]);
+  const models = list?.models || [];
+  // un modèle choisi qui n'est plus dans la liste reste affiché (Google l'a peut-être retiré)
+  const options = pref !== "auto" && !models.includes(pref) ? [pref, ...models] : models;
+
+  async function refresh() {
+    if (!apiKey) { setState({ ok: false, text: "Colle et enregistre d'abord ta clé." }); return; }
+    setState({ loading: true });
+    try {
+      const l = await refreshGeminiModelList(apiKey);
+      setList(l);
+      if (pref !== "auto" && !l.models.includes(pref)) setState({ ok: false, text: pref + " n'est plus proposé par Google : repasse en automatique ou choisis-en un autre." });
+      else setState(null);
+    } catch (e) { setState({ ok: false, text: "Échec : " + e.message }); }
+  }
+  function choose(v) { setPref(v); setGeminiModelPref(v); }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
+      <label htmlFor="gemini-model" style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Modèle</label>
+      <select id="gemini-model" value={pref} onChange={(e) => choose(e.target.value)} style={{
+        ...inputStyle, width: "100%", marginTop: 4, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.line}`, fontSize: 13.5, fontFamily: "inherit", background: C.card, color: C.ink,
+      }}>
+        <option value="auto">Automatique (recommandé)</option>
+        {options.map((m) => <option key={m} value={m}>{m}{list && !models.includes(m) ? " (retiré)" : ""}</option>)}
+      </select>
+      <button onClick={refresh} disabled={state?.loading} style={{
+        width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${C.herb}`, background: "transparent", color: C.herb, fontWeight: 600, fontSize: 13,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+      }}>
+        <RefreshCw size={14} style={state?.loading ? { animation: "nmspin 1s linear infinite" } : undefined} />
+        {state?.loading ? "Recherche des modèles…" : "Actualiser la liste des modèles"}
+      </button>
+      <style>{"@keyframes nmspin{to{transform:rotate(360deg)}}"}</style>
+      {state && !state.loading && <p style={{ fontSize: 12, margin: "8px 0 0", color: state.ok ? C.herb : C.berry, lineHeight: 1.45 }}>{state.text}</p>}
+      <p style={{ fontSize: 11.5, color: C.inkSoft, margin: "8px 0 0", lineHeight: 1.5 }}>
+        {list
+          ? <><b style={{ color: C.ink }}>{models.length} modèle{models.length > 1 ? "s" : ""}</b> disponible{models.length > 1 ? "s" : ""} pour ta clé
+              {" "}(liste du {new Date(list.at).toLocaleDateString("fr-FR")}). </>
+          : "Appuie sur « Actualiser » pour voir les modèles disponibles pour ta clé. "}
+        {pref === "auto"
+          ? "En automatique, l'appli prend le plus adapté et bascule sur un autre s'il est saturé."
+          : "L'appli utilise ce modèle en priorité ; s'il est saturé ou retiré, elle bascule sur un modèle automatique."}
+      </p>
+    </div>
+  );
+}
+
 export function RemindersCard() {
   const [r, setR] = useState(loadReminders());
   const [msg, setMsg] = useState(null);

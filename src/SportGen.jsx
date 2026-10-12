@@ -340,7 +340,7 @@ ${list}` }], { onStatus: setStatus, temperature: 0.6 });
         <Card>
           <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Clé Gemini nécessaire</p>
           <p style={{ margin: 0, fontSize: 13, color: C.inkSoft, lineHeight: 1.55 }}>
-            Le coach utilise ta clé Gemini gratuite (la même que pour la photo des repas). Ajoute-la dans Profil → Détection photo par IA. En attendant, la <strong>Séance sur mesure</strong> fonctionne sans clé et hors-ligne.
+            Le coach utilise ta clé Gemini gratuite (la même que pour la photo des repas). Ajoute-la dans Profil → Intelligence artificielle Gemini. En attendant, la <strong>Séance sur mesure</strong> fonctionne sans clé et hors-ligne.
           </p>
         </Card>
       </div>

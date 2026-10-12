@@ -529,6 +529,12 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
             {r.rebuilt && r.basal
               ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives</span>
               : r.active ? <span style={{ display: "block", fontSize: 10.5 }}>dont {r.active} actives</span> : null}
+            {isToday && r.lastAt && (() => {
+              const late = cal.asOf && cal.asOf - r.lastAt > 45 * 60000;
+              return <span style={{ display: "block", fontSize: 10.5, color: late ? C.ochre : C.inkSoft }}>
+                reçues à {new Date(r.lastAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}{late ? " · en retard" : ""}
+              </span>;
+            })()}
           </span>
         </button>
       ))}
@@ -545,6 +551,7 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
       )}
       <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.inkSoft }}>
         Touche une appli pour l'inclure ou l'exclure de la moyenne.{isToday ? " En cours de journée, les calories actives sont celles déjà envoyées par chaque appli." : ""}
+        {isToday && cal.rows.some((r) => r.lastAt && cal.asOf - r.lastAt > 45 * 60000) && " « En retard » : l'appli n'a pas encore envoyé ses dernières activités à Health Connect, le total se complétera plus tard (regarde la veille pour comparer)."}
         {cal.rows.length === 1 && " Une seule appli envoie des calories à Health Connect : pour comparer, autorise aussi Fitbit ou Fit à écrire leurs calories (voir Health Connect)."}
       </p>
     </div>

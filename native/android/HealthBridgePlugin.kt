@@ -357,7 +357,7 @@ class HealthBridgePlugin : Plugin() {
     }
 
     /**
-     * { start, end, basalEnd? } → { sources: [{ origin, active, total, basal }] } — un total séparé pour chaque appli (hors NutriMaison).
+     * { start, end, basalEnd? } → { sources: [{ origin, active, total, basal, lastActiveAt, activeRecords }] } — un total séparé pour chaque appli (hors NutriMaison).
      * basalEnd : fin de la période pour le métabolisme de base (fin de journée), comme le fait l'appli Withings
      * qui compte le métabolisme de toute la journée dès le matin.
      */
@@ -386,6 +386,19 @@ class HealthBridgePlugin : Plugin() {
                             timeRangeFilter = range, dataOriginFilter = filter))
                         r[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.let { row.put("active", it.inKilocalories) }
                         r[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.let { row.put("total", it.inKilocalories) }
+                    } catch (e: Exception) {}
+                    // heure de la dernière donnée de calories actives envoyée par cette appli (pour voir si elle est en retard)
+                    try {
+                        var token: String? = null
+                        var last = 0L
+                        var n = 0
+                        do {
+                            val resp = client.readRecords(ReadRecordsRequest(recordType = ActiveCaloriesBurnedRecord::class, timeRangeFilter = range,
+                                dataOriginFilter = filter, pageSize = 1000, pageToken = token))
+                            resp.records.forEach { last = maxOf(last, it.endTime.toEpochMilli()); n++ }
+                            token = resp.pageToken
+                        } while (token != null)
+                        if (n > 0) { row.put("lastActiveAt", last); row.put("activeRecords", n) }
                     } catch (e: Exception) {}
                     try {
                         val r = client.aggregate(AggregateRequest(

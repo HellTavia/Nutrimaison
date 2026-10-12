@@ -67,6 +67,48 @@ export async function resolveGeminiModels(apiKey) {
   return models;
 }
 export async function resolveGeminiModel(apiKey) { return (await resolveGeminiModels(apiKey))[0]; }
+/* ---------------------------------------------------------------- */
+/* CHOIX DU MODÈLE PAR L'UTILISATEUR                                 */
+/* geminiModelPref : "auto" (défaut) ou un nom de modèle.            */
+/* geminiModelList : liste des modèles texte disponibles pour la clé */
+/* ---------------------------------------------------------------- */
+export function getGeminiModelPref() { try { return localStorage.getItem("geminiModelPref") || "auto"; } catch (e) { return "auto"; } }
+export function setGeminiModelPref(v) { try { if (!v || v === "auto") localStorage.removeItem("geminiModelPref"); else localStorage.setItem("geminiModelPref", v); } catch (e) {} }
+/** Modèles capables de lire texte + photo et de répondre en texte (pas d'image, de voix, d'embedding…). */
+export function usableGeminiModels(models) {
+  const names = models.map((m) => (m.name || m).replace(/^models\//, ""));
+  const ok = names.filter((n) => /^gemini|^gemma/i.test(n) && !/image|tts|audio|live|embedding|robotics|computer|native|aqa|veo|imagen|learnlm/i.test(n));
+  const version = (n) => { const m = n.match(/-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+  const tier = (n) => (/^gemma/.test(n) ? 3 : /pro/.test(n) ? 1 : /lite/.test(n) ? 2 : 0); // flash, pro, lite, gemma
+  return [...new Set(ok)].sort((a, b) => tier(a) - tier(b) || (/latest/.test(b) - /latest/.test(a)) || version(b) - version(a) || a.localeCompare(b));
+}
+export function getCachedGeminiModelList(apiKey) {
+  try {
+    const c = JSON.parse(localStorage.getItem("geminiModelList") || "null");
+    if (c && Array.isArray(c.models) && (!apiKey || c.key === apiKey.slice(-6))) return c;
+  } catch (e) {}
+  return null;
+}
+/** Bouton « Actualiser la liste des modèles ». */
+export async function refreshGeminiModelList(apiKey) {
+  const raw = await listGeminiModels(apiKey);
+  const models = usableGeminiModels(raw);
+  if (!models.length) throw new Error("aucun modèle Gemini compatible pour cette clé");
+  const entry = { models, key: apiKey.slice(-6), at: Date.now() };
+  try { localStorage.setItem("geminiModelList", JSON.stringify(entry)); } catch (e) {}
+  // on en profite pour rafraîchir aussi la sélection automatique
+  try { localStorage.setItem("geminiModel", JSON.stringify({ models: rankGeminiModels(raw), key: apiKey.slice(-6), at: Date.now() })); } catch (e) {}
+  return entry;
+}
+/** Ordre d'essai : le modèle choisi d'abord, puis les automatiques en secours s'il est saturé ou retiré. */
+export async function geminiModelOrder(apiKey) {
+  const pref = getGeminiModelPref();
+  let auto = [];
+  try { auto = await resolveGeminiModels(apiKey); } catch (e) { if (pref === "auto") throw e; }
+  if (pref === "auto") return auto;
+  return [pref, ...auto.filter((m) => m !== pref)];
+}
+
 /** Le modèle qui vient de répondre passe en tête pour la prochaine fois. */
 export function rememberGoodModel(apiKey, model) {
   try {
@@ -95,9 +137,11 @@ function markNoThink(model) { try { const s = noThinkSet(); s.add(model); localS
  */
 export async function geminiGenerate(apiKey, parts, { onStatus, json = true, temperature = 0.3, timeoutMs = 45000, totalMs = 110000, signal } = {}) {
   const started = Date.now();
-  const models = await resolveGeminiModels(apiKey);
+  const models = await geminiModelOrder(apiKey);
+  const pref = getGeminiModelPref();
   let lastErr = null;
   for (const model of models) {
+    if (pref !== "auto" && model !== pref && model === models[1]) onStatus && onStatus(pref + " indisponible, bascule automatique sur " + model + "…");
     for (let attempt = 0; attempt < 2; attempt++) {
       const left = totalMs - (Date.now() - started);
       if (left < 5000) { lastErr = { message: "délai dépassé, Google répond trop lentement en ce moment" }; break; }
@@ -123,7 +167,7 @@ export async function geminiGenerate(apiKey, parts, { onStatus, json = true, tem
         throw new Error(e.message); // pas de réseau : inutile d'essayer d'autres modèles
       }
       if (!data.error) {
-        rememberGoodModel(apiKey, model);
+        if (pref === "auto") rememberGoodModel(apiKey, model); // un secours ponctuel ne change pas l'ordre automatique
         const cand = data.candidates?.[0];
         const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
         if (!text.trim()) {

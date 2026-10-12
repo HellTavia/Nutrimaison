@@ -1,5 +1,15 @@
 # Historique des versions
 
+## 2.21.0
+- **Dépense du jour** : sous chaque appli, l'heure de la dernière donnée de calories actives reçue par Health Connect (« reçues à 21:10 »). Si elle date de plus de 45 min, la ligne passe en « en retard » : l'appli (souvent Withings) n'a pas encore envoyé ses dernières activités, le total se complétera plus tard.
+- La carte de la clé Gemini s'appelle maintenant **Intelligence artificielle Gemini** (elle sert à la photo, aux étiquettes, au frigo, au Texte IA et au coach).
+
+## 2.20.0
+- **Choix du modèle Gemini** (Profil → Détection photo par IA) : « Automatique (recommandé) » ou un modèle précis de la liste.
+  - Bouton « Actualiser la liste des modèles » : interroge Google pour ta clé et n'affiche que les modèles utiles (texte et photo ; pas de voix, d'image ni d'embedding). Le nombre de modèles et la date de la liste sont affichés.
+  - Un modèle choisi est utilisé en priorité. S'il est saturé ou retiré par Google, l'appli bascule sur un modèle automatique et le dit ; ce secours ne change pas ton choix.
+  - « Tester la clé » indique le modèle qui sera vraiment utilisé.
+
 ## 2.19.1
 - Ajouter → Recette : « Mes recettes pour le dîner » et « Récemment notées » se replient et se déplient comme les catégories (le choix est mémorisé). Chaque section montre 5 recettes puis « Voir les N autres ».
 - « Récemment notées » ne répète plus les recettes déjà affichées pour le repas choisi.

@@ -242,7 +242,7 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 | Où | Quoi |
 |---|---|
 | **Profil → Calculer mes besoins** | Sexe, âge, taille, poids, mode détaillé (pas + sport) ou simple, objectif |
-| **Profil → Détection photo par IA** | Clé Gemini gratuite ([aistudio.google.com](https://aistudio.google.com)), bouton « Tester la clé ». Le modèle est choisi automatiquement, avec bascule si un modèle est saturé ou retiré. |
+| **Profil → Intelligence artificielle Gemini** | Clé Gemini gratuite ([aistudio.google.com](https://aistudio.google.com)), bouton « Tester la clé ». Modèle : « Automatique (recommandé) » ou un modèle précis, liste mise à jour par « Actualiser la liste des modèles ». Bascule sur un autre modèle s'il est saturé ou retiré. |
 | **Profil → Rappels** | Heure du rappel du soir et de la pesée |
 | **Profil → Health Connect** | Activer, choisir ce qui est envoyé et lu, « Autoriser l'accès » |
 | **Profil → Calories du sport** | Remanger les calories du sport : non (conseillé), la moitié, la totalité |
@@ -308,7 +308,7 @@ nutrimaison/
 | `customFoods`, `customRecipes`, `favorites`, `mealTemplates` | Aliments, recettes, favoris et repas types perso |
 | `pantry`, `fridgeExtras`, `shoppingList` | Contenu du frigo et liste de courses |
 | `mealPlan`, `theme` | Planning de la semaine, apparence (clair / sombre / auto) |
-| `healthConnect`, `reminders`, `geminiModel` | Réglages et état des intégrations |
+| `healthConnect`, `reminders`, `geminiModel`, `geminiModelPref`, `geminiModelList` | Réglages et état des intégrations |
 | `autoBackup`, `updateCheck` | Copie automatique et vérification des versions (non inclus dans les sauvegardes) |
 
 ### Copie de sécurité automatique
