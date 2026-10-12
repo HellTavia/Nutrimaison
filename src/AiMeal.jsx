@@ -4,6 +4,8 @@ import React, { useState, useMemo, useRef } from "react";
 import { Sparkles, Loader2, X, Plus, Minus, Check } from "lucide-react";
 import { C, MONO, round, uid, NumInput } from "./shared.jsx";
 import { geminiGenerate, parseJSONLoose } from "./gemini.js";
+import { recipeCat } from "./foodData.js";
+import { CatPicker } from "./CatPicker.jsx";
 
 const EXAMPLES = [
   "2 tortillas de blé, 150 g de poulet grillé, 30 g de cheddar, salade, 1 c. à soupe de sauce blanche",
@@ -63,6 +65,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
   const [servings, setServings] = useState(4);
   const [eaten, setEaten] = useState(1);
   const [recipeName, setRecipeName] = useState("");
+  const [recipeCategory, setRecipeCategory] = useState(null); // null = deviné d'après le nom
   const [rememberFoods, setRememberFoods] = useState(true);
   const [done, setDone] = useState(null);
   const abortRef = useRef(null);
@@ -105,7 +108,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
   }
   function saveRecipe() {
     onSaveRecipe({
-      id: uid(), name: recipeName.trim() || "Ma recette IA", categorie: "Ma recette", pasCher: false, servings: Math.max(1, servings),
+      id: uid(), name: recipeName.trim() || "Ma recette IA", categorie: recipeCategory || recipeCat({ name: recipeName }), origine: "Texte IA", pasCher: false, servings: Math.max(1, servings),
       ingredients: items.filter((it) => it.grams > 0).map((it) => ({
         foodId: null, name: it.name, kcal100: round(it.k100), prot100: round(it.p100), carbs100: round(it.c100), fat100: round(it.f100), grams: it.grams, brand: true,
       })),
@@ -191,6 +194,7 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
             <div style={box}>
               <input value={recipeName} onChange={(e) => setRecipeName(e.target.value)} placeholder="Nom de la recette (ex : Bolognaise maison)"
                 style={{ width: "100%", padding: "9px 10px", borderRadius: 9, border: `1px solid ${C.line}`, fontSize: 13.5, marginBottom: 10 }} />
+              <CatPicker value={recipeCategory || recipeCat({ name: recipeName })} onChange={setRecipeCategory} />
               {[["Portions dans la recette", servings, setServings], ["Portions mangées", eaten, setEaten]].map(([l, v, set]) => (
                 <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <span style={{ flex: 1, fontSize: 13 }}>{l}</span>

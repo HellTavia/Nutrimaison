@@ -7,7 +7,7 @@ import { NewProductForm, Per100Fields } from "../MealTools.jsx";
 import { openCamera } from "../scanner.js";
 import { C, NumInput, Tag, inputStyle, round } from "../shared.jsx";
 import { AiTextMeal, aiFoodPer100 } from "../AiMeal.jsx";
-import { MEAL_LABELS, MEAL_ORDER, calcFromFood } from "../foodData.js";
+import { MEAL_LABELS, MEAL_ORDER, calcFromFood, recipeTotals, norm, recipeCat, RECIPE_CATS, MEAL_TO_CAT, recipeMeals } from "../foodData.js";
 
 /* ---------------------------------------------------------------- */
 /* AJOUTER UN ALIMENT                                                 */
@@ -144,7 +144,7 @@ export function AddView(props) {
     torchAvailable, torchOn, onToggleTorch, scanBusy, onScanPhoto, onScanManual,
     photoDetecting, photoDetections, photoAiResults, photoError, capturedImage, photoInputRef, onPickPhoto, onPhotoFileChange, onPickPhotoDetection, onPhotoFile, onCancelPhoto,
     onAddAiPhotoResults, onRemoveAiPhotoResult, hasGeminiKey, geminiKey, onAddEntries, onSaveFoods, onSaveAiRecipe,
-    allRecipes, onPickRecipeFromAdd,
+    allRecipes, recipeUsage, onPickRecipeFromAdd,
   } = props;
 
   const [customFormOpen, setCustomFormOpen] = useState(false);
@@ -221,6 +221,16 @@ export function AddView(props) {
                   onPick={onPickRecent} />
               )}
               {quickMsg && <p style={{ position: "sticky", top: 8, zIndex: 2, background: C.herb, color: C.onAccent, borderRadius: 10, padding: "8px 12px", fontSize: 12.5, margin: "0 0 10px", textAlign: "center" }}>{quickMsg}</p>}
+              {searchQ.trim().length >= 2 && (() => {
+                const t = norm(searchQ).trim();
+                const mine = (allRecipes || []).filter((r) => r.custom && !r.noNutrition && norm(r.name).includes(t)).slice(0, 5);
+                return mine.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+                    <p style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, textTransform: "uppercase", letterSpacing: 0.4, margin: 0 }}>Mes recettes</p>
+                    {mine.map((r) => <RecipeRow key={r.id} r={r} onPick={onPickRecipeFromAdd} />)}
+                  </div>
+                ) : null;
+              })()}
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 6px", gap: 8 }}>
                 <p style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, textTransform: "uppercase", letterSpacing: 0.4, margin: 0 }}>Aliments de base</p>
                 {searchQ.trim() && <span style={{ fontSize: 10, color: C.inkSoft }}>Source : Anses, Ciqual 2025</span>}
@@ -547,18 +557,107 @@ export function AddView(props) {
         <AiTextMeal apiKey={geminiKey} mealLabel={MEAL_LABELS[addMeal]} onAddEntries={onAddEntries} onSaveRecipe={onSaveAiRecipe} onSaveFoods={onSaveFoods} />
       )}
 
-      {addTab === "recette" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {allRecipes.map((r) => (
-            <button key={r.id} onClick={() => onPickRecipeFromAdd(r, r.custom)} style={{
-              textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 12px",
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-            }}>
-              <span style={{ fontSize: 13.5 }}>{r.name}</span>
-              {r.pasCher && <Tag color={C.olive} bg={C.oliveLight}>Pas cher</Tag>}
-            </button>
-          ))}
-        </div>
+      {addTab === "recette" && <RecipePicker key={addMeal} recipes={allRecipes} usage={recipeUsage} onPick={onPickRecipeFromAdd} meal={addMeal} />}
+    </div>
+  );
+}
+
+/** Une ligne de recette : nom, étiquettes, kcal par portion. */
+function RecipeRow({ r, onPick }) {
+  const per = r.noNutrition ? null : Math.round(recipeTotals(r).kcal / (r.servings || 1));
+  return (
+    <button onClick={() => onPick(r, r.custom)} style={{
+      textAlign: "left", background: C.card, border: `1px solid ${r.custom ? C.herb : C.line}`, borderRadius: 12, padding: "10px 12px",
+      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, color: C.ink,
+    }}>
+      <span style={{ fontSize: 13.5, minWidth: 0 }}>
+        {r.custom && <span style={{ color: C.herb }}>★ </span>}{r.name}
+        {r.pasCher && <span style={{ marginLeft: 6 }}><Tag color={C.olive} bg={C.oliveLight}>Pas cher</Tag></span>}
+      </span>
+      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: C.inkSoft, flexShrink: 0 }}>{per != null ? `${per} kcal/portion` : "sans macros"}</span>
+    </button>
+  );
+}
+
+/** Onglet « Recette » de l'ajout : recherche, récemment notées, mes recettes, puis l'appli rangée par catégorie. */
+function RecipePicker({ recipes, usage, onPick, meal }) {
+  const [q, setQ] = useState("");
+  // la catégorie qui correspond au repas choisi est ouverte d'office (déjeuner/dîner → Plat, collation → Snack…)
+  // sections repliées / dépliées ; « pour ce repas » et « récemment » : choix mémorisé
+  const [open, setOpen] = useState(() => { try { return JSON.parse(localStorage.getItem("recipePickerFold")) || {}; } catch (e) { return {}; } });
+  const t = norm(q).trim();
+  const head = (txt) => <p style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, textTransform: "uppercase", letterSpacing: 0.4, margin: "6px 0 0" }}>{txt}</p>;
+  const search = (
+    <div style={{ position: "relative" }}>
+      <Search size={16} color={C.inkSoft} style={{ position: "absolute", left: 12, top: 12 }} />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher une recette…"
+        style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.card, fontSize: 14, outline: "none", color: C.ink }} />
+    </div>
+  );
+  if (t) {
+    const found = recipes.filter((r) => norm(r.name).includes(t)).sort((a, b) => (b.custom ? 1 : 0) - (a.custom ? 1 : 0));
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {search}
+        {found.map((r) => <RecipeRow key={r.id} r={r} onPick={onPick} />)}
+        {!found.length && <p style={{ fontSize: 12.5, color: C.inkSoft, fontStyle: "italic", margin: 0 }}>Aucune recette ne correspond.</p>}
+      </div>
+    );
+  }
+  // une recette de l'appli copiée dans Mes recettes n'apparaît qu'une fois (la copie)
+  const copied = new Set(recipes.filter((r) => r.custom && r.fromId).map((r) => r.fromId));
+  recipes = recipes.filter((r) => r.custom || !copied.has(r.id));
+  const forMeal = recipes.filter((r) => r.custom && recipeMeals(r).includes(meal));
+  const inMeal = new Set(forMeal.map((r) => r.id));
+  // « Récemment notées » ne répète pas ce qui est déjà dans la section du repas
+  const recent = recipes.filter((r) => usage?.[r.name] && !inMeal.has(r.id)).sort((a, b) => usage[b.name].last.localeCompare(usage[a.name].last)).slice(0, 6);
+  const cats = {};
+  RECIPE_CATS.forEach((c) => (cats[c] = []));
+  // mes recettes d'abord dans chaque catégorie, puis celles de l'appli
+  [...recipes.filter((r) => r.custom), ...recipes.filter((r) => !r.custom)].forEach((r) => (cats[recipeCat(r)] = cats[recipeCat(r)] || []).push(r));
+  const mealTxt = { petitdej: "le petit-déjeuner", dejeuner: "le déjeuner", diner: "le dîner", collation: "les collations" }[meal] || "ce repas";
+  const isOpen = (k) => (k in open ? open[k] : k === "meal" || k === "recent" ? true : forMeal.length === 0 && k === (MEAL_TO_CAT[meal] || "Plat"));
+  const toggle = (k) => setOpen((o) => {
+    const n = { ...o, [k]: !isOpen(k) };
+    if (k === "meal" || k === "recent") { try { localStorage.setItem("recipePickerFold", JSON.stringify({ meal: n.meal, recent: n.recent })); } catch (e) {} }
+    return n;
+  });
+  const Fold = ({ k, title, extra, list, boxed }) => (
+    <div style={{ border: `1px solid ${C.line}`, borderRadius: 12, background: C.card, overflow: "hidden" }}>
+      <button onClick={() => toggle(k)} style={{
+        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "none", border: "none", color: C.ink,
+      }}>
+        <span style={{ fontSize: 13.5, fontWeight: 600, textAlign: "left" }}>{title} <span style={{ fontWeight: 400, color: C.inkSoft, fontSize: 12 }}>· {list.length}</span>{extra}</span>
+        <span style={{ color: C.inkSoft, fontSize: 14, transform: isOpen(k) ? "rotate(90deg)" : "none", transition: "transform .15s" }}>›</span>
+      </button>
+      {isOpen(k) && <FoldList list={list} onPick={onPick} />}
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {search}
+      {forMeal.length > 0 && <Fold k="meal" title={`★ Mes recettes pour ${mealTxt}`} list={forMeal} />}
+      {recent.length > 0 && <Fold k="recent" title="Récemment notées" list={recent} />}
+      {head("Par catégorie")}
+      {Object.entries(cats).filter(([, list]) => list.length).map(([cat, list]) => (
+        <Fold key={cat} k={cat} title={cat} list={list}
+          extra={list.some((r) => r.custom) && <span style={{ fontWeight: 600, color: C.herb, fontSize: 12 }}> · ★ {list.filter((r) => r.custom).length} à toi</span>} />
+      ))}
+    </div>
+  );
+}
+
+/** Liste d'une section : 5 recettes, puis « Voir les N autres ». */
+function FoldList({ list, onPick }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? list : list.slice(0, 5);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 8px 8px" }}>
+      {shown.map((r) => <RecipeRow key={r.id} r={r} onPick={onPick} />)}
+      {list.length > 5 && (
+        <button onClick={() => setAll(!all)} style={{ background: "none", border: "none", color: C.herb, fontSize: 12.5, fontWeight: 600, padding: "4px 0" }}>
+          {all ? "Réduire" : `Voir les ${list.length - 5} autres`}
+        </button>
       )}
     </div>
   );

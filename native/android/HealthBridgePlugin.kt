@@ -9,6 +9,7 @@ import androidx.health.connect.client.aggregate.AggregateMetric
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BasalMetabolicRateRecord
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HydrationRecord
@@ -18,6 +19,7 @@ import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -68,6 +70,7 @@ class HealthBridgePlugin : Plugin() {
         "exercise" to ExerciseSessionRecord::class,
         "activeCalories" to ActiveCaloriesBurnedRecord::class,
         "totalCalories" to TotalCaloriesBurnedRecord::class,
+        "basal" to BasalMetabolicRateRecord::class,
     )
 
     /* ---------------------------------------------------------------- */
@@ -336,6 +339,63 @@ class HealthBridgePlugin : Plugin() {
                 }
                 call.resolve(JSObject().put("records", out))
             } catch (e: Exception) { call.reject(e.message ?: "readExercises") }
+        }
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Calories app par app (pour comparer / faire une moyenne)          */
+    /* ---------------------------------------------------------------- */
+    private suspend fun <T : Record> originsOf(cls: KClass<T>, range: TimeRangeFilter, into: MutableSet<String>) {
+        try {
+            var token: String? = null
+            do {
+                val resp = client.readRecords(ReadRecordsRequest(recordType = cls, timeRangeFilter = range, pageSize = 1000, pageToken = token))
+                resp.records.forEach { into.add(it.metadata.dataOrigin.packageName) }
+                token = resp.pageToken
+            } while (token != null)
+        } catch (e: Exception) { /* pas d'autorisation pour ce type : on ignore */ }
+    }
+
+    /**
+     * { start, end, basalEnd? } → { sources: [{ origin, active, total, basal }] } — un total séparé pour chaque appli (hors NutriMaison).
+     * basalEnd : fin de la période pour le métabolisme de base (fin de journée), comme le fait l'appli Withings
+     * qui compte le métabolisme de toute la journée dès le matin.
+     */
+    @PluginMethod
+    fun caloriesBySource(call: PluginCall) {
+        val start = inst(call.getLong("start") ?: return call.reject("start"))
+        val end = inst(call.getLong("end") ?: return call.reject("end"))
+        val basalEnd = call.getLong("basalEnd")?.let { inst(it) } ?: end
+        scope.launch {
+            try {
+                val range = TimeRangeFilter.between(start, end)
+                val basalRange = TimeRangeFilter.between(start, basalEnd)
+                val origins = mutableSetOf<String>()
+                originsOf(ActiveCaloriesBurnedRecord::class, range, origins)
+                originsOf(TotalCaloriesBurnedRecord::class, range, origins)
+                // le métabolisme de base est souvent noté une fois par jour (ou moins) : on regarde 7 jours en arrière
+                originsOf(BasalMetabolicRateRecord::class, TimeRangeFilter.between(start.minusSeconds(7 * 86400L), end), origins)
+                origins.remove(context.packageName)
+                val out = JSArray()
+                for (pkg in origins) {
+                    val filter = setOf(DataOrigin(pkg))
+                    val row = JSObject().put("origin", pkg)
+                    try {
+                        val r = client.aggregate(AggregateRequest(
+                            metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL, TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                            timeRangeFilter = range, dataOriginFilter = filter))
+                        r[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.let { row.put("active", it.inKilocalories) }
+                        r[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.let { row.put("total", it.inKilocalories) }
+                    } catch (e: Exception) {}
+                    try {
+                        val r = client.aggregate(AggregateRequest(
+                            metrics = setOf(BasalMetabolicRateRecord.BASAL_CALORIES_TOTAL), timeRangeFilter = basalRange, dataOriginFilter = filter))
+                        r[BasalMetabolicRateRecord.BASAL_CALORIES_TOTAL]?.let { row.put("basal", it.inKilocalories) }
+                    } catch (e: Exception) {}
+                    out.put(row)
+                }
+                call.resolve(JSObject().put("sources", out))
+            } catch (e: Exception) { call.reject(e.message ?: "caloriesBySource") }
         }
     }
 }

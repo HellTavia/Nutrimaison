@@ -491,3 +491,34 @@ export function fridgeMatchers(names) {
   });
   return out;
 }
+
+/* ---- Catégories de recettes (aussi pour les recettes perso) ---- */
+export const RECIPE_CATS = ["Petit-déjeuner", "Plat", "Soupe", "Dessert", "Snack"];
+export const RECIPE_CAT_HINT = { "Petit-déjeuner": "matin", Plat: "déjeuner / dîner", Soupe: "entrée, dîner léger", Dessert: "fin de repas", Snack: "collation" };
+/** Catégorie d'une recette ; pour une ancienne recette perso sans catégorie, on la devine d'après son nom. */
+export function recipeCat(r) {
+  if (RECIPE_CATS.includes(r.categorie)) return r.categorie;
+  const n = norm(r.name);
+  if (/soupe|veloute|potage|bouillon|gaspacho/.test(n)) return "Soupe";
+  if (/porridge|pancake|crepe|tartine|muesli|granola|cereale|brioche|petit.?dej|oeufs? brouill|smoothie bowl|overnight/.test(n)) return "Petit-déjeuner";
+  if (/dessert|gateau|tarte au|tarte aux|mousse|creme brulee|compote|flan|cookie|brownie|cake|clafoutis|panna|tiramisu|crumble|glace|desdert/.test(n)) return "Dessert";
+  if (/barre|snack|collation|energy ball|houmous|chips/.test(n)) return "Snack";
+  return "Plat";
+}
+/** Provenance d'une recette perso, pour une petite étiquette. */
+export function recipeOrigin(r) {
+  if (!r.custom) return null;
+  if (r.origine) return r.origine;
+  if (/^Idée du frigo/.test(r.categorie || "")) return "Idée du frigo";
+  if (/^Recette en ligne/.test(r.categorie || "")) return "En ligne";
+  return "Perso";
+}
+/** Catégorie conseillée pour un repas donné. */
+export const MEAL_TO_CAT = { petitdej: "Petit-déjeuner", dejeuner: "Plat", diner: "Plat", collation: "Snack" };
+
+/* ---- Repas pour lesquels une recette perso est proposée (plusieurs possibles) ---- */
+const CAT_TO_MEALS = { "Petit-déjeuner": ["petitdej"], Plat: ["dejeuner", "diner"], Soupe: ["diner"], Dessert: ["dejeuner", "diner"], Snack: ["collation"] };
+export function recipeMeals(r) {
+  return Array.isArray(r.repas) && r.repas.length ? r.repas : CAT_TO_MEALS[recipeCat(r)] || ["dejeuner", "diner"];
+}
+export function defaultMealsForCat(cat) { return CAT_TO_MEALS[cat] || ["dejeuner", "diner"]; }

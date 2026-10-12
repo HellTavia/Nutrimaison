@@ -8,6 +8,7 @@ import React, { useState, useRef } from "react";
 import { Plus, X, Loader2, Sparkles, Trash2, ShoppingBag, Check } from "lucide-react";
 import { C, round, uid, inputStyle } from "./shared.jsx";
 import { geminiGenerate, parseJSONLoose } from "./gemini.js";
+import { MEAL_LABELS, MEAL_ORDER, RECIPE_CATS, recipeCat } from "./foodData.js";
 
 const MONO = "'IBM Plex Mono',monospace";
 const norm = (s) => String(s || "").replace(/œ/gi, "oe").replace(/æ/gi, "ae").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -86,9 +87,10 @@ Je considère que j'ai aussi : sel, poivre, eau, huile, épices courantes.
 Mon objectif : ${goal}.${ctx.kcalLeft > 0 ? ` Il me reste environ ${Math.round(ctx.kcalLeft)} kcal pour aujourd'hui.` : ""}
 Propose 4 plats simples (cuisine familiale, moins de 45 min) : d'abord ceux qui n'utilisent QUE ce que j'ai, puis ceux où il manque au plus 3 ingrédients faciles à acheter.
 Chaque plat doit être construit AUTOUR de mes ingrédients (ils en sont la base, pas un simple assaisonnement ou une décoration) et utiliser au moins 2 d'entre eux quand c'est possible. Des associations logiques et appétissantes : n'utilise pas un ingrédient s'il ne va pas avec le plat.
+"categorie" : une seule valeur parmi "Petit-déjeuner", "Plat", "Soupe", "Dessert", "Snack".
 Quantités en grammes POUR TOUTES les portions. Pour chaque ingrédient, valeurs pour 100 g (crues, table Ciqual si possible) et "dispo": true si je l'ai, false s'il faut l'acheter.
 Réponds UNIQUEMENT en JSON :
-{"plats":[{"nom":"...","portions":2,"minutes":20,"ingredients":[{"nom":"...","grammes":0,"kcal100":0,"prot100":0,"gluc100":0,"lip100":0,"dispo":true}],"etapes":["..."]}]}`;
+{"plats":[{"nom":"...","categorie":"Plat","portions":2,"minutes":20,"ingredients":[{"nom":"...","grammes":0,"kcal100":0,"prot100":0,"gluc100":0,"lip100":0,"dispo":true}],"etapes":["..."]}]}`;
   const text = await geminiGenerate(apiKey, [{ text: prompt }], { onStatus, temperature: 0.6, signal });
   const r = parseJSONLoose(text) || {};
   const list = Array.isArray(r) ? r : r.plats || r.dishes || [];
@@ -106,6 +108,7 @@ Réponds UNIQUEMENT en JSON :
     }), { kcal: 0, prot: 0, carbs: 0, fat: 0 });
     return {
       id: uid(), name: String(p.nom || p.name || "Plat").trim(), servings, minutes: num(p.minutes) || null,
+      categorie: RECIPE_CATS.includes(p.categorie) ? p.categorie : recipeCat({ name: String(p.nom || p.name || "") }),
       ingredients: ings, steps: (p.etapes || p.steps || []).map(String),
       per: { kcal: tot.kcal / servings, prot: tot.prot / servings, carbs: tot.carbs / servings, fat: tot.fat / servings },
       missing: ings.filter((i) => !i.have).map((i) => i.name),
@@ -114,11 +117,65 @@ Réponds UNIQUEMENT en JSON :
     .sort((a, b) => a.missing.length - b.missing.length);
 }
 
-export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe }) {
+const mealNow = () => { const h = new Date().getHours(); return h < 10 ? "petitdej" : h < 15 ? "dejeuner" : h < 18 ? "collation" : "diner"; };
+
+/** Ajout d'un plat au journal : choix du repas et des portions. */
+function AddToMeal({ p, onConfirm, onCancel }) {
+  const [meal, setMeal] = useState(mealNow);
+  const [n, setN] = useState(1);
+  const b = { width: 30, height: 30, borderRadius: 999, border: `1px solid ${C.line}`, background: C.card, color: C.ink, fontSize: 16, lineHeight: 1 };
+  return (
+    <div style={{ marginTop: 8, background: C.paperDark, borderRadius: 12, padding: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+        {MEAL_ORDER.map((m) => (
+          <button key={m} onClick={() => setMeal(m)} style={{
+            padding: "6px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600, border: `1px solid ${meal === m ? C.herb : C.line}`,
+            background: meal === m ? C.herb : C.card, color: meal === m ? C.onAccent : C.ink,
+          }}>{MEAL_LABELS[m]}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 12.5, color: C.inkSoft }}>Portions</span>
+        <button onClick={() => setN(Math.max(0.5, n - 0.5))} style={b} aria-label="Moins">−</button>
+        <span style={{ fontFamily: MONO, fontWeight: 600, minWidth: 26, textAlign: "center" }}>{String(n).replace(".", ",")}</span>
+        <button onClick={() => setN(n + 0.5)} style={b} aria-label="Plus">+</button>
+        <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 12, color: C.inkSoft }}>{Math.round(p.per.kcal * n)} kcal</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button onClick={onCancel} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, fontSize: 12.5 }}>Annuler</button>
+        <button onClick={() => onConfirm(meal, n)} style={{ flex: 2, padding: "9px 0", borderRadius: 10, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 12.5 }}>
+          Ajouter au {MEAL_LABELS[meal].toLowerCase()}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe, onAddToMeal }) {
   const [state, setState] = useState(null); // {busy,status} | {error} | {ideas}
   const [saved, setSaved] = useState({});
+  const [adding, setAdding] = useState(null);
+  const [added, setAdded] = useState({});
   const [shopped, setShopped] = useState({});
   const abort = useRef(null);
+  function saveIdea(p, mealCatFor) {
+    if (saved[p.id]) return;
+    onSaveRecipe({
+      id: uid(), name: p.name, categorie: mealCatFor || p.categorie || "Plat", origine: "Idée du frigo", pasCher: false, servings: p.servings,
+      ingredients: p.ingredients.map((i) => ({ foodId: null, name: i.name, grams: i.grams, kcal100: round(i.kcal100), prot100: round(i.prot100), carbs100: round(i.carbs100), fat100: round(i.fat100), brand: true })),
+      steps: p.steps,
+    });
+    setSaved((s) => ({ ...s, [p.id]: true }));
+  }
+  function addIdea(p, meal, n) {
+    saveIdea(p, { petitdej: "Petit-déjeuner", collation: "Snack" }[meal]); // gardée dans Mes recettes : on la retrouve ensuite dans « Récemment notées »
+    onAddToMeal(meal, [{
+      id: uid(), name: `${p.name} (${String(n).replace(".", ",")} portion${n > 1 ? "s" : ""})`, grams: null,
+      kcal: round(p.per.kcal * n), prot: round(p.per.prot * n), carbs: round(p.per.carbs * n), fat: round(p.per.fat * n), source: "recette",
+    }]);
+    setAdded((a) => ({ ...a, [p.id]: `Ajouté au ${MEAL_LABELS[meal].toLowerCase()}` }));
+    setAdding(null);
+  }
   if (!geminiKey) {
     return <p style={{ fontSize: 11.5, color: C.inkSoft, margin: "0 0 14px" }}>Astuce : avec une clé Gemini (Profil), l'IA peut aussi inventer des plats avec ce que tu as et te dire quoi acheter.</p>;
   }
@@ -171,17 +228,16 @@ export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe }) 
                     display: "flex", alignItems: "center", gap: 5,
                   }}>{shopped[p.id] ? <><Check size={13} /> Dans la liste</> : <><ShoppingBag size={13} /> + Liste de courses</>}</button>
                 )}
-                <button disabled={saved[p.id]} onClick={() => {
-                  onSaveRecipe({
-                    id: uid(), name: p.name, categorie: "Idée du frigo (IA)", pasCher: false, servings: p.servings,
-                    ingredients: p.ingredients.map((i) => ({ foodId: null, name: i.name, grams: i.grams, kcal100: round(i.kcal100), prot100: round(i.prot100), carbs100: round(i.carbs100), fat100: round(i.fat100), brand: true })),
-                    steps: p.steps,
-                  });
-                  setSaved((s) => ({ ...s, [p.id]: true }));
-                }} style={{
+                {onAddToMeal && (
+                  <button onClick={() => setAdding(adding === p.id ? null : p.id)} style={{
+                    padding: "7px 10px", borderRadius: 9, border: "none", background: added[p.id] ? C.sage : C.herb, color: added[p.id] ? C.herb : C.onAccent, fontSize: 12, fontWeight: 600,
+                  }}>{added[p.id] ? `✓ ${added[p.id]}` : "🍽 Ajouter à un repas"}</button>
+                )}
+                <button disabled={saved[p.id]} onClick={() => saveIdea(p)} style={{
                   padding: "7px 10px", borderRadius: 9, border: "none", background: saved[p.id] ? C.sage : C.herb, color: saved[p.id] ? C.herb : C.onAccent, fontSize: 12, fontWeight: 600,
                 }}>{saved[p.id] ? "✓ Dans Mes recettes" : "Enregistrer la recette"}</button>
               </div>
+              {adding === p.id && <AddToMeal p={p} onCancel={() => setAdding(null)} onConfirm={(meal, n) => addIdea(p, meal, n)} />}
               {p.steps.length > 0 && (
                 <details style={{ marginTop: 8 }}>
                   <summary style={{ fontSize: 12, color: C.herb, fontWeight: 600, cursor: "pointer" }}>Voir la recette</summary>

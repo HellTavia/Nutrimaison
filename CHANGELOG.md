@@ -1,5 +1,53 @@
 # Historique des versions
 
+## 2.19.1
+- Ajouter → Recette : « Mes recettes pour le dîner » et « Récemment notées » se replient et se déplient comme les catégories (le choix est mémorisé). Chaque section montre 5 recettes puis « Voir les N autres ».
+- « Récemment notées » ne répète plus les recettes déjà affichées pour le repas choisi.
+- Quand tu as des recettes pour le repas choisi, les catégories restent repliées pour garder l'écran court.
+
+## 2.19.0
+- **« ★ Ajouter à mes recettes »** sur les recettes de l'appli (ex. Dahl de lentilles) : tu choisis pour quels repas la garder (petit-déjeuner, déjeuner, dîner, collations). La recette passe dans Mes recettes et n'apparaît plus en double.
+- Chaque recette perso a ses **repas** (plusieurs possibles), modifiables dans son détail (« À me proposer pour »). Par défaut : Plat → déjeuner et dîner, Petit-déjeuner → petit-déjeuner, Snack → collations, Soupe → dîner.
+- **Ajouter → Recette** : en tête, « Mes recettes pour le dîner » (ou le repas choisi).
+- Mes recettes : filtre par repas (Petit-déjeuner, Déjeuner, Dîner, Collations) et repas affichés sur chaque carte.
+
+## 2.18.0
+- **Catégories pour tes recettes** : Petit-déjeuner, Plat (déjeuner / dîner), Soupe, Dessert, Snack (collation).
+  - Choix de la catégorie en créant une recette, en l'enregistrant depuis le Texte IA, et modifiable à tout moment dans le détail de la recette (« Ranger cette recette dans »).
+  - Les idées du frigo de l'IA arrivent déjà classées ; ajoutées à un petit-déjeuner ou une collation, elles sont rangées dans la catégorie correspondante.
+  - Les anciennes recettes sont classées automatiquement d'après leur nom (modifiable).
+- **Ajouter → Recette** : tes recettes sont rangées avec celles de l'appli dans chaque catégorie (★ en premier, « ★ 1 à toi »), et la catégorie du repas choisi s'ouvre d'office (Dîner → Plat, Collations → Snack…).
+- Mes recettes : filtres par catégorie, étiquette de provenance (Perso, Texte IA, Idée du frigo, En ligne).
+
+## 2.17.1
+- Idées de plats de l'IA (« Avec mon frigo ») : bouton **🍽 Ajouter à un repas** — choix du repas (petit-déjeuner, déjeuner, dîner, collations) et des portions, ajout direct au journal. La recette est enregistrée en même temps dans Mes recettes et apparaît ensuite dans « Récemment notées ».
+
+## 2.17.0
+- **Recettes réorganisées** : 3 onglets au lieu de 6, et une recherche dans toutes les recettes.
+  - **Mes recettes** : bouton Créer, filtre par type (Perso, Idée du frigo…), les plus notées dans le journal en premier (« notée 3× · hier »).
+  - **Idées** : recettes de l'appli avec filtres (Pas chères, Plat, Petit-déjeuner, Dessert, Soupe, Snack) et l'interrupteur **« Avec ce que j'ai dans mon frigo »**, qui réunit « Par ingrédients » et « Mon frigo » (recettes faisables, à acheter, idées IA, recherche TheMealDB).
+  - **Semaine** : planning et liste de courses au même endroit (nombre d'articles sur l'onglet).
+- **Ajouter → Recette** : recherche, « Récemment notées », « Mes recettes », puis les recettes de l'appli rangées par catégorie (repliées).
+
+## 2.16.0
+- Ajouter → onglet Recette : recherche, **Mes recettes** en premier (★, kcal par portion), puis les recettes de l'appli.
+- Ajouter → Manuel : tes recettes apparaissent aussi dans la recherche d'aliments (« Mes recettes », au-dessus des aliments de base).
+
+## 2.15.2
+- Dépense par appli : pour Withings, le total utilisait encore celui recalculé par Health Connect (métabolisme compté seulement jusqu'à maintenant). Il est maintenant toujours « métabolisme de la journée entière + calories actives », comme dans l'appli Withings.
+- Correction de l'affichage « dont undefined actives » pour une appli qui n'envoie qu'un total (Fitbit).
+
+## 2.15.1
+- Dépense par appli : le métabolisme de base est compté sur la journée entière, comme dans l'appli Withings (avant : seulement jusqu'à l'heure actuelle, d'où un total trop bas en journée). Détail affiché : « 2 698 métab. + 399 actives ».
+- Si une seule appli envoie des calories à Health Connect, la carte explique comment en ajouter une autre pour comparer.
+
+## 2.15.0
+- **Dépense du jour, selon tes applis** (accueil) : une ligne par appli qui a envoyé des calories ce jour-là dans Health Connect, avec son total (reconstruit avec métabolisme de base + calories actives si l'appli n'envoie pas de total, cas de Withings).
+- Moyenne des applis retenues : touche une appli pour l'inclure ou l'exclure (Fitbit exclu par défaut). Les applis absentes n'apparaissent pas.
+- Comparaison : moyenne des montres sur les 7 derniers jours complets ↔ besoin réel calculé d'après le poids et les repas, avec un verdict (cohérent, surestime, sous-estime). L'objectif du jour ne change pas.
+- Séances lues dans Health Connect regroupées par type avec leur vrai nom : « Marche · 7 fois · 133 min · via Withings ».
+- Nouvelle autorisation de lecture « Métabolisme de base » : relancer `node scripts/patch-android.mjs`, puis Profil → Health Connect → Autoriser l'accès.
+
 ## 2.14.0
 - **Mode sombre** : Profil → Apparence, « Comme le téléphone », « Clair » ou « Sombre ». Toutes les couleurs passent par un seul jeu de variables.
 - **Planning de la semaine** (Recettes → Semaine) : placer des recettes (avec le nombre de portions) ou des repas types sur les jours, total prévu par jour comparé à l'objectif, « Noter » pour l'ajouter au journal, « Recopier la semaine précédente ».

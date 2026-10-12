@@ -24,7 +24,7 @@ const READ_ITEMS = [
 ];
 const PERM_OF = {
   w: { nutrition: ["nutrition"], hydration: ["hydration"], exercise: ["exercise"], exerciseCalories: ["activeCalories"], weight: ["weight"], bodyFat: ["bodyFat"] },
-  r: { steps: ["steps"], weight: ["weight"], calories: ["activeCalories", "totalCalories"], exercise: ["exercise"] },
+  r: { steps: ["steps"], weight: ["weight"], calories: ["activeCalories", "totalCalories", "basal"], exercise: ["exercise"] },
 };
 
 export function HealthConnectCard({ onSync }) {

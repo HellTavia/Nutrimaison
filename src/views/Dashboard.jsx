@@ -7,7 +7,7 @@ import { MealActions } from "../MealTools.jsx";
 import { CalendarSheet } from "../Calendar.jsx";
 import { openExternal } from "../updates.js";
 import { C, MONO, Ring, addDays, frDate, frShort, inputStyle, loadJSON, round, saveJSON, todayISO } from "../shared.jsx";
-import { originLabel } from "../healthconnect.js";
+import { originLabel, groupSessions } from "../healthconnect.js";
 import { MEAL_LABELS, MEAL_ORDER, dayFoodWaterMl, norm } from "../foodData.js";
 import { APP_VERSION } from "../version.js";
 
@@ -39,7 +39,7 @@ export function MacroBar({ label, value, goal, color, bg }) {
 /* ---------------------------------------------------------------- */
 /* DASHBOARD                                                         */
 /* ---------------------------------------------------------------- */
-export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onOpenAdd, onDeleteEntry, onChangeWater, onEditEntry,
+export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals, onToggleCalSource, onOpenAdd, onDeleteEntry, onChangeWater, onEditEntry,
   yesterday, onCopyMeal, favorites, onToggleFavorite,
   allDays, weights, update, onDismissUpdate, mealTemplates, planned, onLogPlanned, onCopyIn, onCopyTo, onSaveTemplate, onDeleteTemplate, onAddTemplate, onClearMeal, onScaleMeal,
   activity, sportSettings, onSetSteps, weightStats, bodyFat, onOpenSport, onOpenBody, onOpenBilan }) {
@@ -143,7 +143,8 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
       )}
 
       {/* Activité du jour */}
-      <ActivityCard activity={activity} sportSettings={sportSettings} onSetSteps={onSetSteps} onOpenSport={onOpenSport} goals={goals} />
+      <ActivityCard activity={activity} sportSettings={sportSettings} onSetSteps={onSetSteps} onOpenSport={onOpenSport} goals={goals}
+        weightStats={weightStats} isToday={isToday} onToggleCalSource={onToggleCalSource} />
 
       {/* Poids / corps */}
       <div onClick={() => onOpenBody("poids")} style={{
@@ -423,7 +424,7 @@ export function WaterPicker({ quick, onPick }) {
   );
 }
 
-export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport, goals }) {
+export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport, goals, weightStats, isToday, onToggleCalSource }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   if (!activity) return null;
@@ -471,11 +472,11 @@ export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport,
           {activity.list.length ? activity.list.map((w) => (
             <p key={w.id} style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{w.title} <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>· {Math.round(w.durationMin || 0)} min · {w.kcal} kcal</span></p>
           )) : null}
-          {(activity.hc?.sessions || []).map((x) => (
-            <p key={x.id} style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{x.title} <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>· {x.durationMin} min · via {originLabel(x.origin)}</span></p>
+          {groupSessions(activity.hc?.sessions).map((g) => (
+            <p key={g.key} style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{g.label} <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>· {g.count > 1 ? `${g.count} fois · ` : ""}{Math.round(g.minutes)} min · via {originLabel(g.origin)}</span></p>
           ))}
           {!activity.list.length && !(activity.hc?.sessions || []).length && <p style={{ margin: 0, fontSize: 13, color: C.inkSoft, fontStyle: "italic" }}>Rien pour l'instant</p>}
-          {activity.hc?.activeKcal != null && (
+          {!(activity.cal?.rows || []).length && activity.hc?.activeKcal != null && (
             <p style={{ margin: "3px 0 0", fontSize: 11.5, color: C.inkSoft }}>
               Dépense mesurée (Health Connect) : <strong style={{ fontFamily: MONO }}>{activity.hc.activeKcal} kcal</strong> actives{activity.hc.totalKcal ? ` · ${activity.hc.totalKcal} kcal au total` : ""}
             </p>
@@ -483,10 +484,68 @@ export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport,
         </div>
         <button onClick={onOpenSport} style={{ background: C.herb, color: C.onAccent, border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12, fontWeight: 600 }}>Sport ›</button>
       </div>
+      {(activity.cal?.rows || []).length > 0 && <SpendBlock cal={activity.cal} week={activity.calWeek} adaptive={weightStats?.adaptive} isToday={isToday} onToggle={onToggleCalSource} />}
+
       <p style={{ margin: "10px 0 0", fontSize: 11, color: C.inkSoft, lineHeight: 1.45 }}>
         {eat > 0
           ? `Objectif ajusté : ${goals.kcal} ${activity.bonus >= 0 ? "+" : "−"} ${Math.abs(activity.bonus)} kcal (${Math.round(eat * 100)} % de l'activité du jour au-delà de l'habituel).`
           : "Tes pas habituels et ton sport prévu sont déjà inclus dans ton objectif : les calories dépensées ne sont pas rajoutées (réglable dans Profil)."}
+      </p>
+    </div>
+  );
+}
+
+/** Dépense du jour : une ligne par appli, moyenne des sources retenues, comparaison au besoin réel. */
+function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
+  const hhmm = cal.asOf ? new Date(cal.asOf).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null;
+  const real = adaptive?.ok ? adaptive.tdee : null;
+  let verdict = null;
+  if (week && real) {
+    const d = week.avg - real;
+    verdict = Math.abs(d) <= 150
+      ? { c: C.olive, t: `Les montres sont cohérentes avec ton poids (écart ${d > 0 ? "+" : ""}${d} kcal).` }
+      : d > 0
+        ? { c: C.berry, t: `Les montres surestiment d'environ ${d} kcal/jour : fie-toi plutôt au besoin réel.` }
+        : { c: C.ochre, t: `Les montres sous-estiment d'environ ${-d} kcal/jour : fie-toi plutôt au besoin réel.` };
+  }
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <p style={{ margin: 0, fontSize: 12, color: C.inkSoft }}>Dépense du jour, selon tes applis</p>
+        {isToday && hhmm && <span style={{ fontSize: 10.5, color: C.inkSoft }}>jusqu'à {hhmm}</span>}
+      </div>
+      {cal.rows.map((r) => (
+        <button key={r.origin} onClick={() => r.totalKcal && onToggle && onToggle(r.origin)} style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: "5px 0", textAlign: "left", color: C.ink,
+          opacity: r.included ? 1 : 0.55,
+        }}>
+          <span style={{
+            width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `1.5px solid ${r.included ? C.herb : C.line}`, background: r.included ? C.herb : "transparent",
+            color: C.onAccent, fontSize: 11, lineHeight: "13px", textAlign: "center", fontWeight: 700,
+          }}>{r.included ? "✓" : ""}</span>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, textDecoration: r.included || !r.totalKcal ? "none" : "line-through" }}>{r.label}</span>
+          <span style={{ fontFamily: MONO, fontSize: 12, color: C.inkSoft, textAlign: "right" }}>
+            {r.totalKcal ? `${r.totalKcal.toLocaleString("fr-FR")} kcal` : "—"}
+            {r.rebuilt && r.basal
+              ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives</span>
+              : r.active ? <span style={{ display: "block", fontSize: 10.5 }}>dont {r.active} actives</span> : null}
+          </span>
+        </button>
+      ))}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, padding: "8px 10px", background: C.sage, borderRadius: 10 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.herb }}>Moyenne{cal.n > 1 ? ` de ${cal.n} applis` : ""}</span>
+        <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.herb }}>{cal.avg ? `${cal.avg.toLocaleString("fr-FR")} kcal` : "—"}</span>
+      </div>
+      {(week || real) && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>
+          {week && <div>Montres, moyenne sur {week.days} jour{week.days > 1 ? "s" : ""} : <b style={{ fontFamily: MONO, color: C.ink }}>{week.avg.toLocaleString("fr-FR")} kcal</b></div>}
+          {real && <div>Ton besoin réel (d'après ton poids et tes repas) : <b style={{ fontFamily: MONO, color: C.ink }}>{real.toLocaleString("fr-FR")} kcal</b></div>}
+          {verdict && <div style={{ color: verdict.c, fontWeight: 600, marginTop: 2 }}>{verdict.t}</div>}
+        </div>
+      )}
+      <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.inkSoft }}>
+        Touche une appli pour l'inclure ou l'exclure de la moyenne.{isToday ? " En cours de journée, les calories actives sont celles déjà envoyées par chaque appli." : ""}
+        {cal.rows.length === 1 && " Une seule appli envoie des calories à Health Connect : pour comparer, autorise aussi Fitbit ou Fit à écrire leurs calories (voir Health Connect)."}
       </p>
     </div>
   );

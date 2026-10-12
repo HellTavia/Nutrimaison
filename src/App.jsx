@@ -15,7 +15,7 @@ import { WeightView, armyBodyFat, latestBodyFat, navyBodyFat, useWeightStats } f
 import { BilanView } from "./Bilan.jsx";
 import { syncReminders } from "./reminders.js";
 import { searchCiqual, useCiqualReady } from "./ciqualDb.js";
-import { hcSync, isNativeAndroid, loadHC } from "./healthconnect.js";
+import { hcSync, isNativeAndroid, loadHC, saveHC, calorieSummary } from "./healthconnect.js";
 import { BRAND_DB, COCO_FOOD_LABELS, FOOD_DB, MEAL_ORDER, MOBILENET_FOOD_KEYWORDS, PANTRY_EN, RECIPES, STAPLES_RE, STAPLE_IDS, calcFromFood, emptyDay, fileToBase64, foodById, fridgeMatchers, ingredientData, matchesQuery, norm, offTextSearch, queryTokens, recipeTotals, recipeWaterPerServing, scoreMatch } from "./foodData.js";
 import { Dashboard, scaleEntry } from "./views/Dashboard.jsx";
 import { AddView } from "./views/AddView.jsx";
@@ -66,7 +66,7 @@ export default function App() {
   const [extResults, setExtResults] = useState([]);
   const [extError, setExtError] = useState(null);
 
-  const [recipeTab, setRecipeTab] = useState("toutes");
+  const [recipeTab, setRecipeTab] = useState("idees");
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [recipeIsCustom, setRecipeIsCustom] = useState(false);
   const [servingsToAdd, setServingsToAdd] = useState(1);
@@ -81,6 +81,7 @@ export default function App() {
   const [builderName, setBuilderName] = useState("");
   const [builderServings, setBuilderServings] = useState(2);
   const [builderPasCher, setBuilderPasCher] = useState(false);
+  const [builderCat, setBuilderCat] = useState("Plat");
   const [builderIngredients, setBuilderIngredients] = useState([]);
 
   /* ---- Sport, poids, mensurations ---- */
@@ -122,6 +123,14 @@ export default function App() {
 
   /* ---- Health Connect ---- */
   const [hcVersion, setHcVersion] = useState(0);
+  /** Inclure / exclure une appli de la moyenne des calories dépensées. */
+  function toggleCalSource(origin) {
+    const s = loadHC();
+    const ex = new Set(s.calExclude || []);
+    ex.has(origin) ? ex.delete(origin) : ex.add(origin);
+    saveHC({ ...s, calExclude: [...ex] });
+    setHcVersion((v) => v + 1);
+  }
   const hcCtxRef = useRef(null);
   hcCtxRef.current = () => ({
     days: loadAllDays(), workouts: loadJSON("workouts", []), weights: loadJSON("weights", {}),
@@ -452,8 +461,15 @@ export default function App() {
     return {
       sportKcal, steps, stepsK, stepsDelta, bonus, list: workouts.filter((w) => w.date === currentDate),
       stepsFromHc: dayData.stepsSource === "hc", hc: dayData.hc || null, hcOn: isNativeAndroid() && loadHC().enabled,
+      cal: calorieSummary(dayData.hc, loadHC().calExclude),
+      calWeek: (() => {
+        // moyenne des montres sur les 7 jours complets précédents, à comparer au besoin réel
+        const ex = loadHC().calExclude, vals = [];
+        for (let i = 1; i <= 7; i++) { const c = calorieSummary(allDays[addDays(currentDate, -i)]?.hc, ex); if (c.avg) vals.push(c.avg); }
+        return vals.length ? { avg: Math.round(vals.reduce((a, v) => a + v, 0) / vals.length), days: vals.length } : null;
+      })(),
     };
-  }, [workouts, currentDate, dayData.steps, dayData.stepsSource, dayData.hc, personalInfo, sportSettings, hcVersion]);
+  }, [workouts, currentDate, dayData.steps, dayData.stepsSource, dayData.hc, personalInfo, sportSettings, hcVersion, allDays]);
 
   const ciqualReady = useCiqualReady();
   const filteredFoods = useMemo(() => {
@@ -473,21 +489,9 @@ export default function App() {
     ...customRecipes.map((r) => ({ ...r, custom: true })),
   ], [customRecipes]);
 
-  const visibleRecipes = useMemo(() => {
-    if (recipeTab === "pasCher") return allRecipes.filter((r) => r.pasCher);
-    if (recipeTab === "mesrecettes") return allRecipes.filter((r) => r.custom);
-    if (recipeTab === "ingredients") {
-      if (pantry.size === 0) return [];
-      return allRecipes
-        .map((r) => {
-          const ids = r.ingredients.map((ing) => (Array.isArray(ing) ? ing[0] : ing.foodId)).filter(Boolean);
-          const match = ids.filter((id) => pantry.has(id)).length;
-          return { ...r, matchPct: r.ingredients.length ? match / r.ingredients.length : 0 };
-        })
-        .filter((r) => r.matchPct >= 0.5)
-        .sort((a, b) => b.matchPct - a.matchPct);
-    }
-    if (recipeTab === "frigo") {
+  /** Recettes de l'appli faisables avec « Mon frigo », celles où il manque le moins de choses en premier. */
+  const frigoRecipes = useMemo(() => {
+    {
       if (pantry.size === 0 && fridgeExtras.length === 0) return [];
       const tests = fridgeMatchers([...[...pantry].map((id) => foodById[id]?.name), ...fridgeExtras].filter(Boolean));
       return allRecipes
@@ -514,8 +518,20 @@ export default function App() {
         .sort((a, b) => a.missing.length - b.missing.length || b.matchPct - a.matchPct)
         .slice(0, 12);
     }
-    return allRecipes;
-  }, [recipeTab, allRecipes, pantry, fridgeExtras]);
+    return [];
+  }, [allRecipes, pantry, fridgeExtras]);
+
+  /** Combien de fois chaque recette a été notée dans le journal (et la dernière fois). */
+  const recipeUsage = useMemo(() => {
+    const map = {};
+    Object.entries(allDays).forEach(([d, day]) => Object.values(day?.meals || {}).forEach((list) => (list || []).forEach((e) => {
+      if (e?.source !== "recette" && e?.source !== "planning") return;
+      const base = String(e.name || "").replace(/\s*\([\d.,]+ portions?\)\s*$/, "");
+      const u = map[base] || (map[base] = { count: 0, last: "" });
+      u.count++; if (d > u.last) u.last = d;
+    })));
+    return map;
+  }, [allDays]);
 
   function openAdd(meal) { setAddMeal(meal); setAddTab("manuel"); setSelectedFood(null); setPhotoDetections([]); setPhotoAiResults(null); setCapturedImage(null); setPhotoError(null); setView("add"); }
 
@@ -780,13 +796,13 @@ export default function App() {
   }
   function saveExternalRecipe(m) {
     const recipe = {
-      id: uid(), name: m.strMeal, categorie: "Recette en ligne (TheMealDB)", pasCher: false, servings: 2,
+      id: uid(), name: m.strMeal, categorie: "Plat", origine: "En ligne", pasCher: false, servings: 2,
       ingredients: [], aiIngredientsText: mealIngredientsText(m),
       steps: (m.strInstructions || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
       noNutrition: true, image: m.strMealThumb || null,
     };
     saveCustomRecipes([...customRecipes, recipe]);
-    setRecipeTab("mesrecettes");
+    setRecipeTab("mes");
   }
 
   function addRecipeToJournal(recipe) {
@@ -814,7 +830,7 @@ export default function App() {
   function saveCustomRecipe() {
     if (!builderName.trim() || builderIngredients.length === 0) return;
     const recipe = {
-      id: uid(), name: builderName.trim(), categorie: "Ma recette", pasCher: builderPasCher,
+      id: uid(), name: builderName.trim(), categorie: builderCat, origine: "Perso", pasCher: builderPasCher,
       servings: builderServings,
       ingredients: builderIngredients.map((i) => ({
         foodId: i.foodId || null, name: i.name, kcal100: i.kcal100, prot100: i.prot100, carbs100: i.carbs100, fat100: i.fat100,
@@ -823,7 +839,22 @@ export default function App() {
       steps: [],
     };
     saveCustomRecipes([...customRecipes, recipe]);
-    setShowBuilder(false); setBuilderName(""); setBuilderServings(2); setBuilderIngredients([]); setBuilderPasCher(false);
+    setShowBuilder(false); setBuilderName(""); setBuilderServings(2); setBuilderIngredients([]); setBuilderPasCher(false); setBuilderCat("Plat");
+  }
+  /** Change la catégorie d'une recette perso (Petit-déjeuner, Plat, Soupe, Dessert, Snack). */
+  function setRecipeCategory(id, categorie) {
+    saveCustomRecipes(customRecipes.map((r) => (r.id === id ? { ...r, categorie } : r)));
+    setSelectedRecipe((r) => (r && r.id === id ? { ...r, categorie } : r));
+  }
+  function setRecipeMeals(id, repas) {
+    saveCustomRecipes(customRecipes.map((r) => (r.id === id ? { ...r, repas } : r)));
+    setSelectedRecipe((r) => (r && r.id === id ? { ...r, repas } : r));
+  }
+  /** Copie une recette de l'appli dans Mes recettes (pour la retrouver au dîner, au déjeuner…). */
+  function copyRecipeToMine(recipe, repas) {
+    if (customRecipes.some((r) => r.fromId === recipe.id)) return;
+    const { custom, ...rest } = recipe;
+    saveCustomRecipes([...customRecipes, { ...rest, id: uid(), fromId: recipe.id, origine: "Appli", categorie: recipe.categorie, repas }]);
   }
   function deleteCustomRecipe(id) {
     saveCustomRecipes(customRecipes.filter((r) => r.id !== id));
@@ -860,7 +891,7 @@ export default function App() {
         {view === "dashboard" && (
           <Dashboard
             currentDate={currentDate} setCurrentDate={setCurrentDate}
-            dayData={dayData} totals={totals} goals={goals}
+            dayData={dayData} totals={totals} goals={goals} onToggleCalSource={toggleCalSource}
             onOpenAdd={openAdd} onDeleteEntry={deleteEntry} onChangeWater={changeWater} onEditEntry={editEntry}
             yesterday={allDays[addDays(currentDate, -1)]} onCopyMeal={(meal) => copyMealFrom(addDays(currentDate, -1), meal)}
             favorites={favorites} onToggleFavorite={toggleFavorite}
@@ -905,7 +936,7 @@ export default function App() {
             onAddEntries={(entries) => addEntries(addMeal, entries)}
             onSaveFoods={addCustomFoodsBulk}
             onSaveAiRecipe={(r) => saveCustomRecipes([...customRecipes, r])}
-            allRecipes={allRecipes}
+            allRecipes={allRecipes} recipeUsage={recipeUsage}
             onPickRecipeFromAdd={(r, isCustom) => { setSelectedRecipe(r); setRecipeIsCustom(isCustom); setServingsToAdd(1); setView("recipeDetailFromAdd"); }}
           />
         )}
@@ -917,6 +948,10 @@ export default function App() {
             onBack={() => setView("add")}
             onAdd={() => addRecipeToJournal(selectedRecipe)}
             onDelete={recipeIsCustom ? () => deleteCustomRecipe(selectedRecipe.id) : null}
+            onChangeCat={recipeIsCustom ? (c) => setRecipeCategory(selectedRecipe.id, c) : null}
+            onChangeMeals={recipeIsCustom ? (m) => setRecipeMeals(selectedRecipe.id, m) : null}
+            onCopyToMine={recipeIsCustom ? null : copyRecipeToMine}
+            alreadyMine={!recipeIsCustom && customRecipes.some((r) => r.fromId === selectedRecipe.id)}
             showAddMealPicker={false} addMeal={addMeal} setAddMeal={setAddMeal} onPlan={planAdd}
           />
         )}
@@ -924,10 +959,11 @@ export default function App() {
         {view === "recipes" && !selectedRecipe && !showBuilder && (
           <RecipesView
             recipeTab={recipeTab} setRecipeTab={setRecipeTab}
-            recipes={visibleRecipes} pantry={pantry} setPantry={setPantry}
+            allRecipes={allRecipes} frigoRecipes={frigoRecipes} usage={recipeUsage} pantry={pantry} setPantry={setPantry}
             fridgeExtras={fridgeExtras} setFridgeExtras={setFridgeExtras}
             shopping={shopping} setShopping={setShopping}
             onAddShopping={addShoppingItems}
+            onAddToMeal={(meal, entries) => addEntries(meal, entries)}
             planningView={
               <PlanningView plan={mealPlan} onChangePlan={changePlan} recipes={allRecipes} templates={mealTemplates}
                 goalKcal={goals.kcal} haveNames={[...[...pantry].map((id) => foodById[id]?.name).filter(Boolean), ...fridgeExtras]}
@@ -950,6 +986,10 @@ export default function App() {
             onBack={() => setSelectedRecipe(null)}
             onAdd={() => addRecipeToJournal(selectedRecipe)}
             onDelete={recipeIsCustom ? () => deleteCustomRecipe(selectedRecipe.id) : null}
+            onChangeCat={recipeIsCustom ? (c) => setRecipeCategory(selectedRecipe.id, c) : null}
+            onChangeMeals={recipeIsCustom ? (m) => setRecipeMeals(selectedRecipe.id, m) : null}
+            onCopyToMine={recipeIsCustom ? null : copyRecipeToMine}
+            alreadyMine={!recipeIsCustom && customRecipes.some((r) => r.fromId === selectedRecipe.id)}
             showAddMealPicker addMeal={addMeal} setAddMeal={setAddMeal} onPlan={planAdd}
           />
         )}
@@ -958,7 +998,7 @@ export default function App() {
           <RecipeBuilder
             name={builderName} setName={setBuilderName}
             servings={builderServings} setServings={setBuilderServings}
-            pasCher={builderPasCher} setPasCher={setBuilderPasCher}
+            pasCher={builderPasCher} setPasCher={setBuilderPasCher} cat={builderCat} setCat={setBuilderCat}
             ingredients={builderIngredients} setIngredients={setBuilderIngredients}
             onAddIngredient={addBuilderIngredient}
             onSave={saveCustomRecipe}

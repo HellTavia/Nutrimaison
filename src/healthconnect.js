@@ -22,6 +22,8 @@ export const HC_DEFAULTS = {
   enabled: false,
   write: { nutrition: true, hydration: true, exercise: true, exerciseCalories: false, weight: true, bodyFat: true },
   read: { steps: true, weight: true, calories: true, exercise: true },
+  // sources de calories écartées de la moyenne (Fitbit a tendance à surestimer)
+  calExclude: ["com.fitbit.FitbitMobile"],
   granted: { read: [], write: [] },
   sent: {},
   lastSync: null,
@@ -47,7 +49,7 @@ function wantedPermissions(s) {
   const read = [], write = [];
   if (s.read.steps) read.push("steps");
   if (s.read.weight) read.push("weight");
-  if (s.read.calories) read.push("activeCalories", "totalCalories");
+  if (s.read.calories) read.push("activeCalories", "totalCalories", "basal");
   if (s.read.exercise) read.push("exercise");
   if (s.write.nutrition) write.push("nutrition");
   if (s.write.hydration) write.push("hydration");
@@ -217,7 +219,7 @@ async function pullReads(s, log) {
     (res.records || []).forEach((x) => {
       const d = isoOf(x.start);
       (exercisesByDay[d] = exercisesByDay[d] || []).push({
-        id: x.id, start: x.start, end: x.end, title: x.title || "Séance", origin: x.origin,
+        id: x.id, start: x.start, end: x.end, title: x.title || "", type: x.type, origin: x.origin,
         durationMin: Math.round((x.end - x.start) / 60000),
       });
     });
@@ -234,7 +236,19 @@ async function pullReads(s, log) {
     if (agg.steps != null && day.stepsSource !== "manuel") {
       if (day.steps !== agg.steps || day.stepsSource !== "hc") { day.steps = agg.steps; day.stepsSource = "hc"; changed = true; }
     }
+    // calories app par app (pour la moyenne) — absent sur une ancienne version du pont natif
+    let bySource;
+    if (s.read.calories) {
+      try {
+        // métabolisme de base compté sur la journée entière (comme l'appli Withings), activité jusqu'à maintenant
+        const r = await HealthBridge.caloriesBySource({ start, end, basalEnd: dayStart(addDays(d, 1)) });
+        const k = (v) => (v != null && v > 0 ? Math.round(v) : undefined);
+        bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal) }))
+          .filter((x) => x.active || x.total || x.basal);
+      } catch (e) { bySource = undefined; }
+    }
     const hc = {
+      ...(bySource ? { bySource, asOf: end } : {}),
       activeKcal: agg.activeCalories != null ? Math.round(agg.activeCalories) : undefined,
       totalKcal: agg.totalCalories != null ? Math.round(agg.totalCalories) : undefined,
       sessions: exercisesByDay[d] || [],
@@ -301,6 +315,54 @@ export async function hcSync(ctx, mode = "full") {
 }
 
 /** Libellé lisible d'une appli source. */
+/* ---------------------------------------------------------------- */
+/* Calories : une valeur par appli, moyenne des sources retenues     */
+/* ---------------------------------------------------------------- */
+/** Total de la journée pour une source : son total, sinon métabolisme de base + calories actives. */
+export function sourceTotal(x) {
+  // Priorité au métabolisme de base de la journée entière + activité (même calcul que l'appli Withings).
+  // Le « total » renvoyé par Health Connect pour une appli qui n'écrit pas de total est recalculé par Health Connect
+  // avec le métabolisme compté seulement jusqu'à maintenant : trop bas en journée.
+  if (x.basal > 0 && x.active != null) return { kcal: x.basal + x.active, rebuilt: true };
+  if (x.total > 0) return { kcal: x.total, rebuilt: false };
+  if (x.basal > 0) return { kcal: x.basal, rebuilt: true };
+  return null;
+}
+export function calorieSummary(hc, exclude) {
+  const ex = new Set(exclude || []);
+  const rows = (hc?.bySource || []).map((x) => {
+    const t = sourceTotal(x);
+    return { ...x, label: originLabel(x.origin), totalKcal: t?.kcal ?? null, rebuilt: !!t?.rebuilt, included: !ex.has(x.origin) && !!t };
+  }).sort((a, b) => (b.totalKcal || 0) - (a.totalKcal || 0));
+  const inc = rows.filter((r) => r.included);
+  const avg = inc.length ? Math.round(inc.reduce((a, r) => a + r.totalKcal, 0) / inc.length) : null;
+  return { rows, avg, n: inc.length, asOf: hc?.asOf || null };
+}
+
+/** Nom lisible d'une séance d'après son type Health Connect. */
+const EXERCISE_TYPES = {
+  0: "Entraînement", 2: "Badminton", 8: "Vélo", 9: "Vélo d'appartement", 10: "Bootcamp", 11: "Boxe", 13: "Gymnastique au sol",
+  16: "Danse", 25: "Elliptique", 26: "Cours collectif", 32: "Golf", 36: "HIIT", 37: "Randonnée", 44: "Arts martiaux",
+  48: "Pilates", 51: "Escalade", 53: "Aviron", 54: "Rameur", 56: "Course à pied", 57: "Course sur tapis", 61: "Ski",
+  64: "Football", 66: "Squash", 68: "Escaliers", 69: "Stepper", 70: "Renforcement musculaire", 71: "Étirements",
+  73: "Nage en eau libre", 74: "Natation", 75: "Tennis de table", 76: "Tennis", 79: "Marche", 81: "Musculation", 83: "Yoga",
+};
+export function exerciseLabel(x) {
+  if (x.title && x.title.trim()) return x.title.trim();
+  return EXERCISE_TYPES[x.type] || "Séance";
+}
+/** Regroupe les séances de même type et de même appli : « Marche · 8 fois · 157 min ». */
+export function groupSessions(list) {
+  const g = {};
+  (list || []).forEach((x) => {
+    const label = exerciseLabel(x);
+    const k = label + "|" + x.origin;
+    if (!g[k]) g[k] = { key: k, label, origin: x.origin, count: 0, minutes: 0, first: x.start };
+    g[k].count++; g[k].minutes += x.durationMin || 0; g[k].first = Math.min(g[k].first, x.start);
+  });
+  return Object.values(g).sort((a, b) => a.first - b.first);
+}
+
 export function originLabel(pkg) {
   const map = {
     "com.fitbit.FitbitMobile": "Fitbit",

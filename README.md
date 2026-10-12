@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.14.0-C1922B" alt="Version 2.14.0">
+  <img src="https://img.shields.io/badge/version-2.19.1-C1922B" alt="Version 2.19.1">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
@@ -47,6 +47,7 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 ### Nutrition
 - **Journal par repas** (petit-déjeuner, déjeuner, dîner, collations) : un bloc par repas avec ses totaux, repliable.
 - **Planning de la semaine** (Recettes → Semaine) : recettes et repas types placés sur les jours, total de kcal prévu par jour, « Noter » le jour venu (le plat prévu apparaît aussi dans le repas sur l'accueil), liste de courses de la semaine sans ce qu'il y a déjà dans le frigo, copie de la semaine précédente.
+- **Dépense du jour par appli** : calories de chaque appli présente dans Health Connect (Withings, Fit, Fitbit…), moyenne des sources choisies (touche une appli pour l'inclure ou l'exclure ; Fitbit exclu par défaut), et comparaison avec le besoin réel calculé d'après le poids.
 - **Mode sombre** : Profil → Apparence (comme le téléphone, clair ou sombre).
 - **Calendrier** : touche la date en haut de l'accueil pour aller à n'importe quel jour ; pastille de couleur selon l'objectif calorique, ⚖ les jours de pesée.
 - **Base Ciqual intégrée** : 3 341 aliments génériques officiels (Anses), disponibles hors ligne, recherche sans accents et mot à mot.
@@ -56,7 +57,7 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 - **Favoris, récents, repas types** et **« Comme la veille »** pour noter en quelques secondes ; copie d'un repas entier ou de quelques aliments depuis/vers un autre jour.
 - **Valeurs modifiables à la volée** quand ton produit diffère de celui de la base (option : le mémoriser).
 - **Modification** de chaque aliment noté : quantité, repas, jour ; « j'en ai mangé ½ » (ou ¼, ⅔…) sur un aliment ou un repas entier.
-- **Recettes** : 36 recettes intégrées, recettes perso, recherche par ingrédients, import TheMealDB.
+- **Recettes**, en 3 onglets avec une recherche commune : **Mes recettes** (les plus notées en premier, filtres), **Idées** (recettes intégrées par catégorie, interrupteur « Avec mon frigo » : recettes faisables, ce qu'il manque, idées IA, TheMealDB) et **Semaine** (planning + liste de courses).
 - **Mon frigo** : ce que tu as sous la main → recettes faisables, ce qu'il manque, idées de plats par l'IA, **liste de courses** partageable.
 - **Hydratation** : choix de la quantité (verre, canette, bouteille… ou libre), bouton rapide qui retient la dernière quantité, eau bue + eau contenue dans les aliments (valeurs Ciqual).
 
@@ -169,7 +170,6 @@ La façon la plus simple, sans rien installer sur un ordinateur.
 
 **Mettre à jour** : télécharge la nouvelle version et installe-la par-dessus l'ancienne, tes données sont conservées. Par précaution, fais d'abord **Profil → Sauvegarde → Exporter**.
 
-
 > ⚠️ Une mise à jour ne s'installe par-dessus que si elle est signée avec la **même clé**. Si tu passes de l'APK des Releases à une version que tu as compilée toi-même (ou l'inverse), Android refusera : exporte tes données, désinstalle, installe la nouvelle version, puis restaure (**Profil → Sauvegarde → Restaurer**).
 
 ## Compiler depuis les sources
@@ -261,7 +261,7 @@ nutrimaison/
 │   ├── views/
 │   │   ├── Dashboard.jsx      Accueil « Aujourd'hui » : anneau, eau, activité, repas
 │   │   ├── AddView.jsx        Ajouter : recherche, favoris, scanner, photo, texte IA
-│   │   ├── Recipes.jsx        Recettes, Mon frigo, détail, création
+│   │   ├── Recipes.jsx        Recettes (Mes recettes, Idées, Semaine), détail, création
 │   │   ├── Planning.jsx       Planning de la semaine
 │   │   └── Profile.jsx        Profil, objectifs, rappels, sauvegarde, mises à jour
 │   ├── shared.jsx             Stockage, dates, calculs d'énergie, composants communs
@@ -271,6 +271,7 @@ nutrimaison/
 │   ├── gemini.js              Appels Gemini : choix du modèle, nouvel essai, bascule
 │   ├── AiMeal.jsx             Onglet « Texte IA » et estimation d'un aliment
 │   ├── MealTools.jsx          Copie de repas, repas types, produit inconnu au scan
+│   ├── CatPicker.jsx          Choix de la catégorie d'une recette
 │   ├── Fridge.jsx             Mon frigo, idées de plats IA, liste de courses
 │   ├── Calendar.jsx           Calendrier du mois (accès direct à un jour)
 │   ├── planning.js            Planning : valeurs des plats prévus, courses de la semaine
