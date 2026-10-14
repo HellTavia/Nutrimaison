@@ -12,7 +12,7 @@
 /*    identifiant stable (clientRecordId) → mise à jour, pas doublon.  */
 /* ================================================================== */
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { loadJSON, saveJSON, addDays, todayISO } from "./shared.jsx";
+import { loadJSON, saveJSON, addDays, todayISO, netKcal } from "./shared.jsx";
 
 const HealthBridge = registerPlugin("HealthBridge");
 const KEY = "healthConnect";
@@ -201,6 +201,46 @@ async function pushWrites(s, ctx, log) {
   return sent;
 }
 
+
+/* ---------------------------------------------------------------- */
+/* Séances sans calories                                             */
+/* Certaines applis (Withings) envoient la séance (boxe, vélo…) mais  */
+/* seulement les calories « de mouvement » mesurées pendant ce temps, */
+/* bien moins que ce que leur appli affiche. On estime la séance      */
+/* (MET × poids × durée) et on ajoute ce qui manque.                  */
+/* Marche, course, randonnée : déjà comptées par les pas, on n'y      */
+/* touche pas.                                                        */
+/* ---------------------------------------------------------------- */
+export const SESSION_MET = {
+  0: 5, 2: 5.5, 8: 7, 9: 6.8, 10: 8, 11: 7.8, 13: 4, 16: 5, 25: 5, 26: 6, 32: 4.8, 36: 8, 44: 7.8,
+  48: 3, 51: 8, 53: 7, 54: 7, 61: 7, 64: 7, 66: 7.3, 68: 8, 69: 8, 70: 5, 71: 2.3, 73: 5.8, 74: 5.8,
+  75: 4, 76: 7.3, 81: 5, 83: 2.5,
+};
+function latestKg() {
+  const w = loadJSON("weights", {});
+  const last = Object.keys(w).sort().pop();
+  return (last && Number(w[last])) || Number(loadJSON("personalInfo", {}).poids) || 70;
+}
+async function addSessionFill(bySource, sessions, kg) {
+  for (const x of bySource) {
+    const mine = sessions.filter((z) => z.origin === x.origin && SESSION_MET[z.type] && z.end > z.start);
+    if (!mine.length || !(x.basal > 0)) continue;
+    const detail = [];
+    for (const z of mine) {
+      const est = Math.round(netKcal(SESSION_MET[z.type], kg, (z.end - z.start) / 60000));
+      let rec = 0;
+      const r = await HealthBridge.debugCalories({ start: z.start, end: z.end });
+      (r.records || []).filter((y) => y.kind === "active" && y.origin === x.origin && y.end > y.start).forEach((y) => {
+        const ov = Math.min(y.end, z.end) - Math.max(y.start, z.start);
+        if (ov > 0) rec += y.kcal * ov / (y.end - y.start);
+      });
+      rec = Math.round(rec);
+      if (est - rec >= 15) detail.push({ label: exerciseLabel(z), min: Math.round((z.end - z.start) / 60000), est, rec, add: est - rec });
+    }
+    if (detail.length) { x.fill = detail.reduce((a, q) => a + q.add, 0); x.fillDetail = detail; }
+  }
+}
+
 /* ---------------------------------------------------------------- */
 /* Lecture                                                           */
 /* ---------------------------------------------------------------- */
@@ -223,6 +263,7 @@ async function pullReads(s, log) {
         durationMin: Math.round((x.end - x.start) / 60000),
       });
     });
+    Object.keys(exercisesByDay).forEach((d) => { exercisesByDay[d] = dedupeSessions(exercisesByDay[d]); });
   }
   for (let i = 0; i < days; i++) {
     const d = addDays(today, -i);
@@ -243,9 +284,12 @@ async function pullReads(s, log) {
         // métabolisme de base compté sur la journée entière (comme l'appli Withings), activité jusqu'à maintenant
         const r = await HealthBridge.caloriesBySource({ start, end, basalEnd: dayStart(addDays(d, 1)) });
         const k = (v) => (v != null && v > 0 ? Math.round(v) : undefined);
-        bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal), ...(x.lastActiveAt ? { lastAt: x.lastActiveAt } : {}) }))
+        bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal), ...(x.lastActiveAt ? { lastAt: x.lastActiveAt } : {}), ...(x.activeRaw != null ? { activeRaw: Math.round(x.activeRaw) } : {}) }))
           .filter((x) => x.active || x.total || x.basal);
       } catch (e) { bySource = undefined; }
+      if (bySource && s.fillSessions !== false) {
+        try { await addSessionFill(bySource, exercisesByDay[d] || [], latestKg()); } catch (e) {}
+      }
     }
     const hc = {
       ...(bySource ? { bySource, asOf: end } : {}),
@@ -323,7 +367,7 @@ export function sourceTotal(x) {
   // Priorité au métabolisme de base de la journée entière + activité (même calcul que l'appli Withings).
   // Le « total » renvoyé par Health Connect pour une appli qui n'écrit pas de total est recalculé par Health Connect
   // avec le métabolisme compté seulement jusqu'à maintenant : trop bas en journée.
-  if (x.basal > 0 && x.active != null) return { kcal: x.basal + x.active, rebuilt: true };
+  if (x.basal > 0 && x.active != null) return { kcal: x.basal + x.active + (x.fill || 0), rebuilt: true };
   if (x.total > 0) return { kcal: x.total, rebuilt: false };
   if (x.basal > 0) return { kcal: x.basal, rebuilt: true };
   return null;
@@ -352,15 +396,72 @@ export function exerciseLabel(x) {
   return EXERCISE_TYPES[x.type] || "Séance";
 }
 /** Regroupe les séances de même type et de même appli : « Marche · 8 fois · 157 min ». */
+/**
+ * Une même appli envoie parfois la même séance deux fois (séance modifiée ou resynchronisée = nouvel enregistrement).
+ * Même appli + même type + créneaux qui se recouvrent à plus de 50 % (de la plus courte) → une seule séance, la plus longue.
+ */
+export function dedupeSessions(list) {
+  const out = [];
+  [...(list || [])].sort((a, b) => (b.end - b.start) - (a.end - a.start)).forEach((x) => {
+    const dup = out.find((y) => y.origin === x.origin && y.type === x.type
+      && Math.min(x.end, y.end) - Math.max(x.start, y.start) >= 0.5 * Math.min(x.end - x.start, y.end - y.start));
+    if (!dup) out.push(x);
+  });
+  return out.sort((a, b) => a.start - b.start);
+}
 export function groupSessions(list) {
   const g = {};
-  (list || []).forEach((x) => {
+  dedupeSessions(list).forEach((x) => {
     const label = exerciseLabel(x);
     const k = label + "|" + x.origin;
     if (!g[k]) g[k] = { key: k, label, origin: x.origin, count: 0, minutes: 0, first: x.start };
     g[k].count++; g[k].minutes += x.durationMin || 0; g[k].first = Math.min(g[k].first, x.start);
   });
   return Object.values(g).sort((a, b) => a.first - b.first);
+}
+
+/**
+ * Diagnostic calories d'un jour : enregistrements bruts (toutes applis, sans dédoublonnage)
+ * comparés aux totaux dédoublonnés que Health Connect renvoie pour chaque appli.
+ */
+export async function debugCaloriesDay(iso) {
+  const start = dayStart(iso);
+  const isToday = iso === new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const end = isToday ? Date.now() : start + 86400000;
+  const [raw, agg, ex] = await Promise.all([
+    HealthBridge.debugCalories({ start, end }),
+    HealthBridge.caloriesBySource({ start, end, basalEnd: start + 86400000 }).catch(() => ({ sources: [] })),
+    HealthBridge.readExercises({ start, end }).catch(() => ({ records: [] })),
+  ]);
+  const rawSessions = (ex.records || []).sort((a, b) => a.start - b.start);
+  const kept = new Set(dedupeSessions(rawSessions).map((x) => x.id));
+  const sessions = rawSessions.map((x) => ({ ...x, label: exerciseLabel(x), app: originLabel(x.origin), duplicate: !kept.has(x.id) }));
+  const by = {};
+  (raw.records || []).forEach((r) => {
+    const o = (by[r.origin] = by[r.origin] || { origin: r.origin, label: originLabel(r.origin), active: [], total: [] });
+    (o[r.kind] || (o[r.kind] = [])).push(r);
+  });
+  (agg.sources || []).forEach((a) => {
+    const o = (by[a.origin] = by[a.origin] || { origin: a.origin, label: originLabel(a.origin), active: [], total: [] });
+    o.agg = a;
+  });
+  const sum = (l) => Math.round(l.reduce((t, r) => t + r.kcal, 0));
+  // chevauchements entre applis : la part des calories actives d'une appli qui tombe sur un créneau d'une autre
+  const all = Object.values(by);
+  all.forEach((o) => {
+    o.activeSum = sum(o.active); o.totalSum = sum(o.total);
+    o.active.sort((a, b) => a.start - b.start);
+    o.overlap = {};
+    all.filter((x) => x !== o).forEach((x) => {
+      let k = 0;
+      o.active.forEach((r) => x.active.forEach((y) => {
+        const ov = Math.min(r.end, y.end) - Math.max(r.start, y.start);
+        if (ov > 0 && r.end > r.start) k += r.kcal * ov / (r.end - r.start);
+      }));
+      if (k >= 1) o.overlap[x.label] = Math.round(k);
+    });
+  });
+  return { iso, end, sessions, sources: all.sort((a, b) => b.activeSum - a.activeSum) };
 }
 
 export function originLabel(pkg) {
@@ -373,6 +474,7 @@ export function originLabel(pkg) {
     "com.google.android.apps.wear.companion": "Pixel Watch",
     "com.garmin.android.apps.connectmobile": "Garmin",
     "com.strava": "Strava",
+    "app.nutrimaison": "NutriMaison",
   };
   if (!pkg) return "autre appli";
   return map[pkg] || (pkg === "android" ? "Téléphone" : pkg.split(".").slice(-1)[0]);

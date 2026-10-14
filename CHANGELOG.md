@@ -1,5 +1,18 @@
 # Historique des versions
 
+## 2.23.1
+- **Séance comptée deux fois** : quand une appli (Withings) renvoie la même séance sous un nouvel enregistrement (séance modifiée ou resynchronisée), NutriMaison n'en garde qu'une (même appli, même type, créneaux qui se recouvrent à plus de 50 %). Corrige « Boxe · 2 fois » et la double estimation de calories.
+- Diagnostic des calories : liste des séances reçues avec leurs horaires ; les doublons ignorés sont barrés.
+
+## 2.23.0
+- **Séances sans calories complétées** : Withings envoie à Health Connect tes séances (boxe, vélo, renforcement…) mais seulement les calories de mouvement mesurées pendant ce temps (ex. 38 kcal pour 15 min de boxe), alors que son appli compte la séance entière. NutriMaison estime maintenant la séance (type, durée, ton poids) et ajoute ce qui manque à la dépense de l'appli : « 2 693 métab. + 439 actives + 190 séance* », avec le détail par séance.
+  - Marche, course et randonnée ne sont pas touchées (déjà comptées par les pas).
+  - Désactivable : Profil → Health Connect → « Compléter les séances sans calories ».
+
+## 2.22.0
+- **Diagnostic des calories** (Profil → Health Connect, sous « Synchroniser ») : pour aujourd'hui ou hier, ce que chaque appli a réellement écrit dans Health Connect (« brut ») comparé à ce que Health Connect en retient (« compté »), les chevauchements entre applis et le détail heure par heure des calories actives.
+- Dépense du jour : si une appli a écrit plus de calories actives que Health Connect n'en compte, la ligne l'indique (« écrit 647 actives, Health Connect en compte 438 »).
+
 ## 2.21.0
 - **Dépense du jour** : sous chaque appli, l'heure de la dernière donnée de calories actives reçue par Health Connect (« reçues à 21:10 »). Si elle date de plus de 45 min, la ligne passe en « en retard » : l'appli (souvent Withings) n'a pas encore envoyé ses dernières activités, le total se complétera plus tard.
 - La carte de la clé Gemini s'appelle maintenant **Intelligence artificielle Gemini** (elle sert à la photo, aux étiquettes, au frigo, au Texte IA et au coach).

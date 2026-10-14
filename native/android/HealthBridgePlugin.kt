@@ -392,13 +392,14 @@ class HealthBridgePlugin : Plugin() {
                         var token: String? = null
                         var last = 0L
                         var n = 0
+                        var raw = 0.0
                         do {
                             val resp = client.readRecords(ReadRecordsRequest(recordType = ActiveCaloriesBurnedRecord::class, timeRangeFilter = range,
                                 dataOriginFilter = filter, pageSize = 1000, pageToken = token))
-                            resp.records.forEach { last = maxOf(last, it.endTime.toEpochMilli()); n++ }
+                            resp.records.forEach { last = maxOf(last, it.endTime.toEpochMilli()); n++; raw += it.energy.inKilocalories }
                             token = resp.pageToken
                         } while (token != null)
-                        if (n > 0) { row.put("lastActiveAt", last); row.put("activeRecords", n) }
+                        if (n > 0) { row.put("lastActiveAt", last); row.put("activeRecords", n); row.put("activeRaw", raw) }
                     } catch (e: Exception) {}
                     try {
                         val r = client.aggregate(AggregateRequest(
@@ -409,6 +410,40 @@ class HealthBridgePlugin : Plugin() {
                 }
                 call.resolve(JSObject().put("sources", out))
             } catch (e: Exception) { call.reject(e.message ?: "caloriesBySource") }
+        }
+    }
+
+    /**
+     * Diagnostic : { start, end } → { records: [{ kind, origin, start, end, kcal }] }
+     * Tous les enregistrements bruts de calories (actives, totales, métabolisme), toutes applis, sans aucun dédoublonnage.
+     */
+    @PluginMethod
+    fun debugCalories(call: PluginCall) {
+        val start = inst(call.getLong("start") ?: return call.reject("start"))
+        val end = inst(call.getLong("end") ?: return call.reject("end"))
+        scope.launch {
+            val out = JSArray()
+            val range = TimeRangeFilter.between(start, end)
+            fun add(kind: String, origin: String, s: Instant, e: Instant, kcal: Double) {
+                out.put(JSObject().put("kind", kind).put("origin", origin).put("start", s.toEpochMilli()).put("end", e.toEpochMilli()).put("kcal", kcal))
+            }
+            try {
+                var token: String? = null
+                do {
+                    val r = client.readRecords(ReadRecordsRequest(ActiveCaloriesBurnedRecord::class, range, pageSize = 1000, pageToken = token))
+                    r.records.forEach { add("active", it.metadata.dataOrigin.packageName, it.startTime, it.endTime, it.energy.inKilocalories) }
+                    token = r.pageToken
+                } while (token != null)
+            } catch (e: Exception) {}
+            try {
+                var token: String? = null
+                do {
+                    val r = client.readRecords(ReadRecordsRequest(TotalCaloriesBurnedRecord::class, range, pageSize = 1000, pageToken = token))
+                    r.records.forEach { add("total", it.metadata.dataOrigin.packageName, it.startTime, it.endTime, it.energy.inKilocalories) }
+                    token = r.pageToken
+                } while (token != null)
+            } catch (e: Exception) {}
+            call.resolve(JSObject().put("records", out))
         }
     }
 }

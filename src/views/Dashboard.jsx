@@ -527,8 +527,14 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
           <span style={{ fontFamily: MONO, fontSize: 12, color: C.inkSoft, textAlign: "right" }}>
             {r.totalKcal ? `${r.totalKcal.toLocaleString("fr-FR")} kcal` : "—"}
             {r.rebuilt && r.basal
-              ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives</span>
+              ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives{r.fill ? ` + ${r.fill} séance*` : ""}</span>
               : r.active ? <span style={{ display: "block", fontSize: 10.5 }}>dont {r.active} actives</span> : null}
+            {r.fillDetail && r.fillDetail.map((q, i) => (
+              <span key={i} style={{ display: "block", fontSize: 10.5, color: C.inkSoft }}>* {q.label} {q.min} min ≈ {q.est} ({q.rec} reçues)</span>
+            ))}
+            {r.activeRaw != null && r.active != null && r.activeRaw - r.active >= 20 && (
+              <span style={{ display: "block", fontSize: 10.5, color: C.ochre }}>écrit {r.activeRaw} actives, Health Connect en compte {r.active}</span>
+            )}
             {isToday && r.lastAt && (() => {
               const late = cal.asOf && cal.asOf - r.lastAt > 45 * 60000;
               return <span style={{ display: "block", fontSize: 10.5, color: late ? C.ochre : C.inkSoft }}>
@@ -551,6 +557,7 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
       )}
       <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.inkSoft }}>
         Touche une appli pour l'inclure ou l'exclure de la moyenne.{isToday ? " En cours de journée, les calories actives sont celles déjà envoyées par chaque appli." : ""}
+        {cal.rows.some((r) => r.fill) && " * Séances : l'appli a envoyé la séance mais presque pas ses calories ; NutriMaison estime la dépense de la séance (type, durée, ton poids) et ajoute ce qui manque (réglable dans Profil → Health Connect)."}
         {isToday && cal.rows.some((r) => r.lastAt && cal.asOf - r.lastAt > 45 * 60000) && " « En retard » : l'appli n'a pas encore envoyé ses dernières activités à Health Connect, le total se complétera plus tard (regarde la veille pour comparer)."}
         {cal.rows.length === 1 && " Une seule appli envoie des calories à Health Connect : pour comparer, autorise aussi Fitbit ou Fit à écrire leurs calories (voir Health Connect)."}
       </p>
