@@ -233,7 +233,15 @@ export function parseCSV(text) {
 const NUTR = { 1008: "kcal", 1003: "prot", 1005: "carbs", 1004: "fat", 2000: "sugar", 1079: "fiber", 1093: "sodium", 1258: "satfat", 1051: "water" };
 export const USDA_FIELDS = ["id", "name", "kcal", "prot", "carbs", "fat", "sugar", "fiber", "salt", "satfat", "water"];
 /** Aliment de marque (mot en majuscules de 4 lettres ou plus : KELLOGG'S, MCDONALD'S…) : inutile en France. */
-export const isBranded = (d) => /\b[A-Z][A-Z'&.-]{3,}\b/.test(d);
+// Produits de marque (BURGER KING, McDONALD'S…) : quatre majuscules à la suite, sauf « USDA ».
+export const isBranded = (d) => /[A-Z]{4,}/.test(String(d).replace(/\bUSDA\b/g, "")) || /\b[A-Z][A-Z'&.-]{3,}\b/.test(d);
+/** Nom affiché : complet s'il est court, sinon coupé à la dernière virgule avant la limite. */
+export function shortName(s, max = 110) {
+  s = clean(s, 400);
+  if (s.length <= max) return s;
+  const cut = s.lastIndexOf(",", max);
+  return cut > 20 ? s.slice(0, cut) : s.slice(0, max).replace(/\s+\S*$/, "");
+}
 
 // unzip sous Linux/macOS ; sinon tar (bsdtar, fourni avec Windows 10 et 11), qui lit aussi les zip.
 function zipTool() {
@@ -273,7 +281,7 @@ ${JSON.stringify(items.map((x) => x.desc))}`;
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
       const m = text.match(/\[[\s\S]*\]/);
       let arr; try { arr = JSON.parse(m ? m[0] : text); } catch (e) { arr = null; }
-      if (Array.isArray(arr) && arr.length === items.length) return arr.map((s) => clean(s, 90));
+      if (Array.isArray(arr) && arr.length === items.length) return arr.map((s) => clean(s, 400));
       log("  réponse incomplète, nouvel essai…");
       continue;
     }
@@ -328,6 +336,11 @@ async function buildUsda() {
 
   const cacheFile = path.join(ROOT, "scripts", "usda-translations.json");
   const cache = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {};
+  if (!cache.__v) { // 1re version : traductions coupées à 90 caractères, on refait seulement celles-là
+    let n = 0; for (const [k, v] of Object.entries(cache)) if (String(v).length >= 89) { delete cache[k]; n++; }
+    if (n) log(`${n} traductions coupées trop court : elles vont être refaites.`);
+    cache.__v = 2;
+  }
   const todo = list.filter((x) => !cache[x.id]);
   if (todo.length) {
     if (!key) die(`${todo.length} noms à traduire : lance avec GEMINI_API_KEY=ta_clé (clé gratuite de aistudio.google.com)`);
@@ -353,7 +366,7 @@ async function buildUsda() {
     }
   }
   const rows = list.filter((x) => cache[x.id]).map((x) => [
-    Number(x.id), cache[x.id], Math.round(x.v.kcal), r1(x.v.prot), r1(x.v.carbs), r1(x.v.fat),
+    Number(x.id), shortName(cache[x.id]), Math.round(x.v.kcal), r1(x.v.prot), r1(x.v.carbs), r1(x.v.fat),
     x.v.sugar != null ? r1(x.v.sugar) : null, x.v.fiber != null ? r1(x.v.fiber) : null,
     x.v.sodium != null ? Math.round(x.v.sodium * 2.5 / 100) / 10 : null, x.v.satfat != null ? r1(x.v.satfat) : null,
     x.v.water != null ? r1(x.v.water) : null,
