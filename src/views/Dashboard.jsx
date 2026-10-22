@@ -3,11 +3,11 @@
 /* Écran « Aujourd'hui » : anneau, eau, activité, repas, édition d'un aliment */
 import React, { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Droplet, Flame, Footprints, Minus, MoreHorizontal, Pencil, Plus, Scale, Trash2 } from "lucide-react";
-import { MealActions } from "../MealTools.jsx";
+import { MealActions, Sheet } from "../MealTools.jsx";
 import { CalendarSheet } from "../Calendar.jsx";
 import { openExternal } from "../updates.js";
 import { C, MONO, Ring, addDays, frDate, frShort, inputStyle, loadJSON, round, saveJSON, todayISO } from "../shared.jsx";
-import { originLabel, groupSessions } from "../healthconnect.js";
+import { originLabel, groupSessions, loadHC, saveHC, sessionMet, SESSION_MET, findSessionFix, setSessionFix } from "../healthconnect.js";
 import { MEAL_LABELS, MEAL_ORDER, dayFoodWaterMl, norm } from "../foodData.js";
 import { APP_VERSION } from "../version.js";
 
@@ -47,8 +47,9 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
   const [editing, setEditing] = useState(null); // "meal:id"
   const [mealMenu, setMealMenu] = useState(null);
   const [calOpen, setCalOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => loadJSON("collapsedMeals", {}));
-  const toggleCollapsed = (m) => { const n = { ...collapsed, [m]: !collapsed[m] }; setCollapsed(n); saveJSON("collapsedMeals", n); };
+  const [openMeals, setOpenMeals] = useState(() => loadJSON("openMeals", {}));
+  const toggleMeal = (m) => { const n = { ...openMeals, [m]: !openMeals[m] }; setOpenMeals(n); saveJSON("openMeals", n); };
+  const [actOpen, setActOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
   const [waterQuick, setWaterQuick] = useState(() => loadJSON("waterQuick", 250));
   const budget = goals.kcal + (activity?.bonus || 0);
@@ -85,12 +86,9 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
         </div>
       )}
 
-      {/* Anneau calories */}
-      <div style={{
-        background: C.card, borderRadius: 20, padding: "22px 20px", border: `1px solid ${C.line}`,
-        display: "flex", alignItems: "center", gap: 20, marginBottom: 16,
-      }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
+      {/* Résumé du jour : calories, macros et eau dans un seul bloc */}
+      <div style={{ background: C.card, borderRadius: 20, padding: "18px 18px 14px", border: `1px solid ${C.line}`, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>        <div style={{ position: "relative", flexShrink: 0 }}>
           <Ring value={totals.kcal} goal={budget} color={totals.kcal > budget ? C.berry : C.herb} />
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600, fontSize: 24, color: C.ink }}>{Math.round(totals.kcal)}</span>
@@ -107,32 +105,25 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
         </div>
       </div>
 
-      {/* Eau */}
-      <div style={{
-        background: C.hero, borderRadius: 20, padding: "16px 20px", marginBottom: 16,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Droplet size={22} color="#BEEAD4" fill="#BEEAD4" />
-          <div>
-            <p style={{ margin: 0, fontFamily: "'IBM Plex Mono',monospace", color: C.onHero, fontSize: 16, fontWeight: 600 }}>
-              {(dayData.water + (goals.foodWater !== false ? foodWater : 0)).toLocaleString("fr-FR")} <span style={{ color: "#BFD3C6", fontWeight: 500, fontSize: 12 }}>/ {goals.water.toLocaleString("fr-FR")} ml</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
+          <Droplet size={20} color="#5AA7C9" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontFamily: MONO, fontSize: 15, fontWeight: 600 }}>
+              {(dayData.water + (goals.foodWater !== false ? foodWater : 0)).toLocaleString("fr-FR")} <span style={{ color: C.inkSoft, fontWeight: 500, fontSize: 12 }}>/ {goals.water.toLocaleString("fr-FR")} ml</span>
             </p>
-            <p style={{ margin: 0, color: "#BFD3C6", fontSize: 11 }}>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: 11 }}>
               {goals.foodWater !== false
                 ? <>Bu {dayData.water.toLocaleString("fr-FR")} + aliments ~{foodWater.toLocaleString("fr-FR")} ml</>
-                : "Hydratation du jour (eau bue)"}
+                : "Eau bue"}
             </p>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => onChangeWater(-waterQuick)} aria-label={`Retirer ${waterQuick} ml`} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 999, width: 30, height: 30, color: C.onHero, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={() => onChangeWater(-waterQuick)} aria-label={`Retirer ${waterQuick} ml`} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 999, width: 30, height: 30, color: C.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Minus size={14} />
           </button>
-          <button onClick={() => onChangeWater(waterQuick)} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 999, padding: "0 12px", color: C.onHero, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+          <button onClick={() => onChangeWater(waterQuick)} style={{ background: C.herb, border: "none", borderRadius: 999, padding: "0 12px", height: 30, color: C.onAccent, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
             +{waterQuick} ml
           </button>
-          <button onClick={() => setWaterOpen(!waterOpen)} aria-label="Choisir une quantité" style={{ background: C.onHero, border: "none", borderRadius: 999, width: 30, height: 30, color: C.hero, display: "flex", alignItems: "center", justifyContent: "center", transform: waterOpen ? "rotate(45deg)" : "none", transition: "transform .2s" }}>
+          <button onClick={() => setWaterOpen(!waterOpen)} aria-label="Choisir une quantité" style={{ background: C.sage, border: "none", borderRadius: 999, width: 30, height: 30, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center", transform: waterOpen ? "rotate(45deg)" : "none", transition: "transform .2s" }}>
             <Plus size={14} />
           </button>
         </div>
@@ -142,103 +133,51 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
           onPick={(ml, keepOpen) => { onChangeWater(ml); if (ml > 0) { setWaterQuick(ml); saveJSON("waterQuick", ml); } if (!keepOpen) setWaterOpen(false); }} />
       )}
 
-      {/* Activité du jour */}
-      <ActivityCard activity={activity} sportSettings={sportSettings} onSetSteps={onSetSteps} onOpenSport={onOpenSport} goals={goals}
-        weightStats={weightStats} isToday={isToday} onToggleCalSource={onToggleCalSource} />
-
-      {/* Poids / corps */}
-      <div onClick={() => onOpenBody("poids")} style={{
-        background: C.card, borderRadius: 20, padding: "14px 18px", border: `1px solid ${C.line}`, marginBottom: 22,
-        display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
-      }}>
-        <Scale size={22} color={C.herb} />
-        <div style={{ flex: 1 }}>
-          <p style={{ margin: 0, fontSize: 12, color: C.inkSoft }}>Poids · tendance</p>
-          <p style={{ margin: 0, fontFamily: MONO, fontWeight: 600, fontSize: 15 }}>
-            {weightStats?.latestTrend ? `${round(weightStats.latestTrend)} kg` : "Pas encore de pesée"}
-            {weightStats?.change7 != null && (
-              <span style={{ fontSize: 12, marginLeft: 8, color: weightStats.change7 > 0.15 ? C.berry : weightStats.change7 < -0.15 ? C.olive : C.inkSoft }}>
-                {weightStats.change7 > 0 ? "+" : ""}{round(weightStats.change7)} kg / 7 j
-              </span>
-            )}
-          </p>
-          {bodyFat && <p style={{ margin: 0, fontSize: 11.5, color: C.inkSoft }}>Masse grasse : {round(bodyFat.bf)} %</p>}
-        </div>
-        <span style={{ fontSize: 12, color: C.herb, fontWeight: 600 }}>{weightStats?.latestTrend ? "Détails" : "Se peser"} ›</span>
-      </div>
-
-      <button onClick={onOpenBilan} style={{
-        width: "100%", marginTop: -10, marginBottom: 22, padding: "12px 18px", borderRadius: 16, border: `1px solid ${C.line}`, background: C.card,
-        display: "flex", alignItems: "center", justifyContent: "space-between", color: C.ink,
-      }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600 }}>📊 Bilan de la semaine</span>
-        <span style={{ fontSize: 12, color: C.herb, fontWeight: 600 }}>Voir ›</span>
-      </button>
-
-      {/* Repas : un bloc par repas (en-tête avec totaux, repliable, menu ⋯) */}
-      {MEAL_ORDER.map((meal) => {
+      {/* Repas : une ligne compacte par repas, qui se déplie au toucher */}
+      <p style={LBL}>Repas</p>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, overflow: "hidden", marginBottom: 6 }}>
+      {MEAL_ORDER.map((meal, mi) => {
         const items = dayData.meals[meal];
         const sum = items.reduce((t, e) => ({ kcal: t.kcal + (e.kcal || 0), prot: t.prot + (e.prot || 0), carbs: t.carbs + (e.carbs || 0), fat: t.fat + (e.fat || 0) }), { kcal: 0, prot: 0, carbs: 0, fat: 0 });
-        const isCollapsed = !!collapsed[meal] && items.length > 0;
+        const isOpen = !!openMeals[meal];
         const yList = yesterday?.meals?.[meal] || [];
+        const plans = (planned?.[meal] || []).filter((p) => !p.done);
         return (
-          <div key={meal} style={{ marginBottom: 14, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 10px 10px 14px" }}>
-              <button onClick={() => items.length && toggleCollapsed(meal)} aria-expanded={!isCollapsed} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, color: C.ink }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 16 }}>{MEAL_LABELS[meal]}</span>
-                  {items.length > 0 && <ChevronDown size={15} color={C.inkSoft} style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform .15s" }} />}
+          <div key={meal} style={{ borderTop: mi ? `1px solid ${C.line}` : "none" }}>
+            <div onClick={() => toggleMeal(meal)} role="button" aria-expanded={isOpen} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px 12px 16px", cursor: "pointer" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{MEAL_LABELS[meal]}</span>
+                  <ChevronDown size={14} color={C.inkSoft} style={{ transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .15s" }} />
                 </span>
-                {items.length > 0 && (
-                  <span style={{ display: "block", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11.5, color: C.inkSoft, marginTop: 1 }}>
-                    <b style={{ color: C.herb }}>{Math.round(sum.kcal)} kcal</b> · P{Math.round(sum.prot)} G{Math.round(sum.carbs)} L{Math.round(sum.fat)} · {items.length} aliment{items.length > 1 ? "s" : ""}
+                {items.length > 0 ? (
+                  <span style={{ display: "block", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{items.map((e) => e.name).join(", ")}</span>
+                ) : !plans.length && <span style={{ display: "block", fontSize: 12, color: C.inkSoft, fontStyle: "italic" }}>Rien pour l'instant</span>}
+                {plans.map((p) => (
+                  <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ochre, fontWeight: 600, marginTop: 1 }}>
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      📅 Prévu : {p.name}{p.kind === "recipe" && p.servings !== 1 ? ` ×${String(p.servings).replace(".", ",")}` : ""} · {Math.round(p.kcal)} kcal
+                    </span>
+                    <button onClick={(ev) => { ev.stopPropagation(); onLogPlanned(meal, p); }} style={{ padding: "3px 9px", borderRadius: 999, border: "none", background: C.ochreLight, color: C.ochre, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Noter</button>
                   </span>
-                )}
-              </button>
-              <button onClick={() => setMealMenu(meal)} aria-label={`Options ${MEAL_LABELS[meal]}`} style={{
-                background: "none", border: `1px solid ${C.line}`, borderRadius: 999, width: 30, height: 30,
-                display: "flex", alignItems: "center", justifyContent: "center", color: C.inkSoft, flexShrink: 0,
-              }}><MoreHorizontal size={16} /></button>
-              <button onClick={() => onOpenAdd(meal)} aria-label={`Ajouter au ${MEAL_LABELS[meal]}`} style={{
-                background: C.sage, border: "none", borderRadius: 999, width: 30, height: 30,
+                ))}
+              </div>
+              {items.length > 0 && <span style={{ fontFamily: MONO, fontSize: 13.5, color: C.inkSoft }}>{Math.round(sum.kcal)}</span>}
+              <button onClick={(ev) => { ev.stopPropagation(); onOpenAdd(meal); }} aria-label={`Ajouter au ${MEAL_LABELS[meal]}`} style={{
+                background: C.sage, border: "none", borderRadius: 999, width: 32, height: 32,
                 display: "flex", alignItems: "center", justifyContent: "center", color: C.herb, flexShrink: 0,
               }}><Plus size={16} /></button>
             </div>
-            {(planned?.[meal] || []).filter((p) => !p.done).map((p) => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 10px 8px", padding: "7px 10px", borderRadius: 10, border: `1px dashed ${C.herb}`, background: C.sage }}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.ink }}>
-                  📅 Prévu : <b>{p.name}</b>{p.kind === "recipe" && p.servings !== 1 ? ` ×${String(p.servings).replace(".", ",")}` : ""}
-                  <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: C.inkSoft }}> · {Math.round(p.kcal)} kcal</span>
-                </span>
-                <button onClick={() => onLogPlanned(meal, p)} style={{ padding: "5px 10px", borderRadius: 999, border: "none", background: C.herb, color: C.onAccent, fontSize: 11.5, fontWeight: 600, flexShrink: 0 }}>Noter</button>
-              </div>
-            ))}
-            {items.length === 0 ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 14px 12px", flexWrap: "wrap" }}>
-                <p style={{ margin: 0, fontSize: 12.5, color: C.inkSoft, fontStyle: "italic" }}>Aucun aliment ajouté.</p>
-                {yList.length > 0 ? (
-                  <button onClick={() => onCopyMeal(meal)} style={{
-                    background: "transparent", border: `1px dashed ${C.herb}`, borderRadius: 999, padding: "5px 10px",
-                    color: C.herb, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
-                  }}>
-                    ↺ Comme la veille ({yList.length} · {Math.round(yList.reduce((a, e) => a + (e.kcal || 0), 0))} kcal)
-                  </button>
-                ) : (
-                  <button onClick={() => setMealMenu(meal)} style={{
-                    background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 999, padding: "5px 10px",
-                    color: C.inkSoft, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
-                  }}>↺ Copier un repas…</button>
+            {isOpen && (
+              <div style={{ background: C.paper, borderTop: `1px solid ${C.line}` }}>
+                {items.length > 0 && (
+                  <p style={{ margin: 0, padding: "7px 16px 0", fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>
+                    <b style={{ color: C.herb }}>{Math.round(sum.kcal)} kcal</b> · P{Math.round(sum.prot)} G{Math.round(sum.carbs)} L{Math.round(sum.fat)} · {items.length} aliment{items.length > 1 ? "s" : ""}
+                  </p>
                 )}
-              </div>
-            ) : isCollapsed ? (
-              <p onClick={() => toggleCollapsed(meal)} style={{ margin: 0, padding: "0 14px 12px", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>
-                {items.map((e) => e.name).join(" · ")}
-              </p>
-            ) : (
-              <div style={{ borderTop: `1px solid ${C.line}` }}>
-                {items.map((e, idx) => (
+                {items.map((e) => (
                   editing === meal + ":" + e.id ? (
-                    <div key={e.id} style={{ padding: 8, borderTop: idx ? `1px solid ${C.line}` : "none" }}>
+                    <div key={e.id} style={{ padding: 8 }}>
                       <EntryEditor entry={e} meal={meal} currentDate={currentDate}
                         isFavorite={(favorites || []).some((f) => f.key === norm(e.name))} onToggleFavorite={() => onToggleFavorite(e)}
                         onCancel={() => setEditing(null)}
@@ -247,12 +186,11 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
                     </div>
                   ) : (
                   <div key={e.id} onClick={() => setEditing(meal + ":" + e.id)} style={{
-                    padding: "9px 14px", borderTop: idx ? `1px solid ${C.line}` : "none",
-                    display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 8,
+                    padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 8,
                   }}>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 13.5, fontWeight: 500 }}>{e.name}</p>
-                      <p style={{ margin: 0, fontSize: 11, color: C.inkSoft, fontFamily: "'IBM Plex Mono',monospace" }}>
+                      <p style={{ margin: 0, fontSize: 11, color: C.inkSoft, fontFamily: MONO }}>
                         {e.grams ? `${e.grams} g · ` : ""}{Math.round(e.kcal)} kcal · P{round(e.prot)} G{round(e.carbs)} L{round(e.fat)}
                       </p>
                     </div>
@@ -260,11 +198,71 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
                   </div>
                   )
                 ))}
+                <div style={{ display: "flex", gap: 8, padding: "6px 12px 12px", flexWrap: "wrap" }}>
+                  {items.length === 0 && yList.length > 0 && (
+                    <button onClick={() => onCopyMeal(meal)} style={{ background: "transparent", border: `1px dashed ${C.herb}`, borderRadius: 999, padding: "6px 11px", color: C.herb, fontSize: 12, fontWeight: 600 }}>
+                      ↺ Comme la veille ({yList.length} · {Math.round(yList.reduce((a, e) => a + (e.kcal || 0), 0))} kcal)
+                    </button>
+                  )}
+                  <button onClick={() => setMealMenu(meal)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 999, padding: "6px 11px", color: C.inkSoft, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+                    <MoreHorizontal size={14} /> Copier, repas type, portions…
+                  </button>
+                </div>
               </div>
             )}
           </div>
         );
       })}
+      </div>
+
+      {/* Activité et corps : une ligne chacun, le détail s'ouvre en feuille */}
+      <p style={LBL}>Activité & corps</p>
+      {activity && (() => {
+        const sess = groupSessions(activity.hc?.sessions, loadHC());
+        const bits = [
+          activity.steps != null ? `${activity.steps.toLocaleString("fr-FR")} pas` : null,
+          ...activity.list.map((w) => `${w.title} ${Math.round(w.durationMin || 0)} min`),
+          ...sess.map((g) => `${g.label} ${Math.round(g.minutes)} min`),
+        ].filter(Boolean);
+        const avg = activity.cal?.avg;
+        return (
+          <button onClick={() => setActOpen(true)} style={ROW}>
+            <span style={TICO}><Flame size={17} /></span>
+            <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+              <b style={{ display: "block", fontSize: 14.5 }}>{avg ? `Dépense ≈ ${avg.toLocaleString("fr-FR")} kcal` : "Activité du jour"}</b>
+              <span style={{ display: "block", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bits.join(" · ") || "Pas et sport : rien pour l'instant"}</span>
+            </span>
+            <ChevronRight size={17} color={C.inkSoft} />
+          </button>
+        );
+      })()}
+      <button onClick={() => onOpenBody("poids")} style={ROW}>
+        <span style={TICO}><Scale size={17} /></span>
+        <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          <b style={{ display: "block", fontSize: 14.5, fontFamily: MONO }}>
+            {weightStats?.latestTrend ? `${String(round(weightStats.latestTrend)).replace(".", ",")} kg` : "Se peser"}
+            {weightStats?.change7 != null && (
+              <span style={{ fontSize: 12, marginLeft: 6, fontWeight: 500, color: weightStats.change7 > 0.15 ? C.berry : weightStats.change7 < -0.15 ? C.olive : C.inkSoft }}>
+                {weightStats.change7 > 0 ? "+" : ""}{String(round(weightStats.change7)).replace(".", ",")} kg / 7 j
+              </span>
+            )}
+          </b>
+          <span style={{ display: "block", fontSize: 12, color: C.inkSoft }}>{bodyFat ? `Masse grasse ${String(round(bodyFat.bf)).replace(".", ",")} % · ` : ""}poids, métabolisme, besoin réel</span>
+        </span>
+        <Sparkline weights={weights} />
+        <ChevronRight size={17} color={C.inkSoft} />
+      </button>
+      <button onClick={onOpenBilan} style={{ ...ROW, padding: "11px 16px" }}>
+        <span style={{ flex: 1, textAlign: "left", fontSize: 13.5, fontWeight: 600 }}>📊 Bilan de la semaine</span>
+        <ChevronRight size={17} color={C.inkSoft} />
+      </button>
+
+      {actOpen && (
+        <Sheet title="Activité du jour" onClose={() => setActOpen(false)}>
+          <ActivityCard activity={activity} sportSettings={sportSettings} onSetSteps={onSetSteps} onOpenSport={() => { setActOpen(false); onOpenSport(); }} goals={goals}
+            weightStats={weightStats} isToday={isToday} onToggleCalSource={onToggleCalSource} onOpenMetab={() => { setActOpen(false); onOpenBody("metab"); }} />
+        </Sheet>
+      )}
       {calOpen && (
         <CalendarSheet currentDate={currentDate} allDays={allDays} weights={weights} goalKcal={goals.kcal}
           onPick={setCurrentDate} onClose={() => setCalOpen(false)} />
@@ -282,6 +280,19 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
       )}
     </div>
   );
+}
+
+const LBL = { fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: C.inkSoft, margin: "16px 4px 8px" };
+const ROW = { width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, color: C.ink, cursor: "pointer" };
+const TICO = { width: 34, height: 34, borderRadius: 10, background: C.sage, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
+
+/** Petite courbe des dernières pesées (tendance visuelle sur la ligne Poids de l'accueil). */
+function Sparkline({ weights }) {
+  const pts = Object.entries(weights || {}).sort((a, b) => a[0].localeCompare(b[0])).slice(-14).map(([, v]) => Number(v)).filter(Boolean);
+  if (pts.length < 3) return null;
+  const min = Math.min(...pts), max = Math.max(...pts), r = max - min || 1;
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${(i / (pts.length - 1)) * 60},${3 + (1 - (v - min) / r) * 18}`).join(" ");
+  return <svg width="60" height="24" viewBox="0 0 60 24" style={{ flexShrink: 0 }}><path d={d} fill="none" stroke={C.herb} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 /** Applique un facteur (½, ¾, ×2…) à un aliment noté : quantité et valeurs recalculées. */
@@ -424,9 +435,10 @@ export function WaterPicker({ quick, onPick }) {
   );
 }
 
-export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport, goals, weightStats, isToday, onToggleCalSource }) {
+export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport, goals, weightStats, isToday, onToggleCalSource, onOpenMetab }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
+  const [info, setInfo] = useState(false); // explications repliées derrière ⓘ
   if (!activity) return null;
   const habitual = sportSettings.habitualSteps || 0;
   const eat = sportSettings.eatBack || 0;
@@ -472,7 +484,7 @@ export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport,
           {activity.list.length ? activity.list.map((w) => (
             <p key={w.id} style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{w.title} <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>· {Math.round(w.durationMin || 0)} min · {w.kcal} kcal</span></p>
           )) : null}
-          {groupSessions(activity.hc?.sessions).map((g) => (
+          {groupSessions(activity.hc?.sessions, loadHC()).map((g) => (
             <p key={g.key} style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{g.label} <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>· {g.count > 1 ? `${g.count} fois · ` : ""}{Math.round(g.minutes)} min · via {originLabel(g.origin)}</span></p>
           ))}
           {!activity.list.length && !(activity.hc?.sessions || []).length && <p style={{ margin: 0, fontSize: 13, color: C.inkSoft, fontStyle: "italic" }}>Rien pour l'instant</p>}
@@ -484,19 +496,24 @@ export function ActivityCard({ activity, sportSettings, onSetSteps, onOpenSport,
         </div>
         <button onClick={onOpenSport} style={{ background: C.herb, color: C.onAccent, border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12, fontWeight: 600 }}>Sport ›</button>
       </div>
-      {(activity.cal?.rows || []).length > 0 && <SpendBlock cal={activity.cal} week={activity.calWeek} adaptive={weightStats?.adaptive} isToday={isToday} onToggle={onToggleCalSource} />}
+      {(activity.cal?.rows || []).length > 0 && <SpendBlock cal={activity.cal} week={activity.calWeek} adaptive={weightStats?.adaptive} isToday={isToday} onToggle={onToggleCalSource} onOpenMetab={onOpenMetab} info={info} />}
 
-      <p style={{ margin: "10px 0 0", fontSize: 11, color: C.inkSoft, lineHeight: 1.45 }}>
+      <button onClick={() => setInfo(!info)} style={{ marginTop: 10, background: "none", border: "none", padding: 0, color: C.inkSoft, fontSize: 12, fontWeight: 600 }}>
+        ⓘ {info ? "Masquer les explications" : "Comment c'est calculé"}
+      </button>
+      {info && <p style={{ margin: "6px 0 0", fontSize: 11, color: C.inkSoft, lineHeight: 1.45 }}>
         {eat > 0
           ? `Objectif ajusté : ${goals.kcal} ${activity.bonus >= 0 ? "+" : "−"} ${Math.abs(activity.bonus)} kcal (${Math.round(eat * 100)} % de l'activité du jour au-delà de l'habituel).`
-          : "Tes pas habituels et ton sport prévu sont déjà inclus dans ton objectif : les calories dépensées ne sont pas rajoutées (réglable dans Profil)."}
-      </p>
+          : "Tes pas habituels et ton sport prévu sont déjà inclus dans ton objectif : les calories dépensées ne sont pas rajoutées (réglable dans Moi → Objectifs)."}
+      </p>}
     </div>
   );
 }
 
 /** Dépense du jour : une ligne par appli, moyenne des sources retenues, comparaison au besoin réel. */
-function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
+function SpendBlock({ cal, week, adaptive, isToday, onToggle, onOpenMetab, info }) {
+  const [editing, setEditing] = useState(null);
+  const [showFill, setShowFill] = useState({});
   const hhmm = cal.asOf ? new Date(cal.asOf).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null;
   const real = adaptive?.ok ? adaptive.tdee : null;
   let verdict = null;
@@ -515,7 +532,8 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
         {isToday && hhmm && <span style={{ fontSize: 10.5, color: C.inkSoft }}>jusqu'à {hhmm}</span>}
       </div>
       {cal.rows.map((r) => (
-        <button key={r.origin} onClick={() => r.totalKcal && onToggle && onToggle(r.origin)} style={{
+        <React.Fragment key={r.origin}>
+        <button onClick={() => r.totalKcal && onToggle && onToggle(r.origin)} style={{
           width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: "5px 0", textAlign: "left", color: C.ink,
           opacity: r.included ? 1 : 0.55,
         }}>
@@ -527,11 +545,14 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
           <span style={{ fontFamily: MONO, fontSize: 12, color: C.inkSoft, textAlign: "right" }}>
             {r.totalKcal ? `${r.totalKcal.toLocaleString("fr-FR")} kcal` : "—"}
             {r.rebuilt && r.basal
-              ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives{r.fill ? ` + ${r.fill} séance*` : ""}</span>
+              ? <span style={{ display: "block", fontSize: 10.5 }}>{r.basal.toLocaleString("fr-FR")} métab. + {r.active || 0} actives{r.fill ? ` + ${r.fill} séances*` : ""}</span>
               : r.active ? <span style={{ display: "block", fontSize: 10.5 }}>dont {r.active} actives</span> : null}
-            {r.fillDetail && r.fillDetail.map((q, i) => (
-              <span key={i} style={{ display: "block", fontSize: 10.5, color: C.inkSoft }}>* {q.label} {q.min} min ≈ {q.est} ({q.rec} reçues)</span>
-            ))}
+            {r.fillDetail && (
+              <span role="button" onClick={(e) => { e.stopPropagation(); setShowFill({ ...showFill, [r.origin]: !showFill[r.origin] }); }}
+                style={{ display: "block", fontSize: 10.5, color: C.herb, fontWeight: 600 }}>
+                * {r.fillDetail.length} séance{r.fillDetail.length > 1 ? "s" : ""} · {showFill[r.origin] ? "masquer ▴" : "détail et correction ▾"}
+              </span>
+            )}
             {r.activeRaw != null && r.active != null && r.activeRaw - r.active >= 20 && (
               <span style={{ display: "block", fontSize: 10.5, color: C.ochre }}>écrit {r.activeRaw} actives, Health Connect en compte {r.active}</span>
             )}
@@ -543,6 +564,24 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
             })()}
           </span>
         </button>
+        {r.fillDetail && showFill[r.origin] && (
+          <div style={{ margin: "0 0 6px 24px", padding: "6px 10px", background: C.sage, borderRadius: 8 }}>
+            <div style={{ display: "flex", fontSize: 10.5, color: C.inkSoft, paddingBottom: 3 }}>
+              <span style={{ flex: 1 }}>Séance (touche pour corriger)</span><span style={{ fontFamily: MONO }}>estimé − reçu = ajouté</span>
+            </div>
+            {r.fillDetail.map((q, i) => (
+              <div key={i} role="button" onClick={() => q.id && setEditing({ ...q, app: r.label })}
+                style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "4px 0", borderTop: `1px solid ${C.line}`, fontSize: 12, color: C.ink }}>
+                <span style={{ flex: 1 }}>
+                  {q.label} <span style={{ color: C.inkSoft }}>{q.start ? new Date(q.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + " · " : ""}{q.min} min</span>
+                  {q.manual && <span style={{ color: C.herb, fontSize: 10.5 }}> · {q.manual === "séance" ? "corrigée" : "réglée"}</span>}
+                </span>
+                <span style={{ fontFamily: MONO, fontSize: 11.5, color: q.manual ? C.herb : C.inkSoft }}>{q.est} − {q.rec} = <b style={{ color: C.ink }}>+{q.add}</b> ✎</span>
+              </div>
+            ))}
+          </div>
+        )}
+        </React.Fragment>
       ))}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, padding: "8px 10px", background: C.sage, borderRadius: 10 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: C.herb }}>Moyenne{cal.n > 1 ? ` de ${cal.n} applis` : ""}</span>
@@ -555,12 +594,86 @@ function SpendBlock({ cal, week, adaptive, isToday, onToggle }) {
           {verdict && <div style={{ color: verdict.c, fontWeight: 600, marginTop: 2 }}>{verdict.t}</div>}
         </div>
       )}
-      <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.inkSoft }}>
+      {info && <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.inkSoft }}>
         Touche une appli pour l'inclure ou l'exclure de la moyenne.{isToday ? " En cours de journée, les calories actives sont celles déjà envoyées par chaque appli." : ""}
-        {cal.rows.some((r) => r.fill) && " * Séances : l'appli a envoyé la séance mais presque pas ses calories ; NutriMaison estime la dépense de la séance (type, durée, ton poids) et ajoute ce qui manque (réglable dans Profil → Health Connect)."}
+        {cal.rows.some((r) => r.fill) && " * Séances : l'appli a envoyé la séance mais presque pas ses calories ; NutriMaison estime la dépense de la séance (type, durée, ton poids) et ajoute ce qui manque. Touche « détail et correction » puis une séance pour saisir les calories affichées par ta montre (option dans Moi → Health Connect)."}
         {isToday && cal.rows.some((r) => r.lastAt && cal.asOf - r.lastAt > 45 * 60000) && " « En retard » : l'appli n'a pas encore envoyé ses dernières activités à Health Connect, le total se complétera plus tard (regarde la veille pour comparer)."}
         {cal.rows.length === 1 && " Une seule appli envoie des calories à Health Connect : pour comparer, autorise aussi Fitbit ou Fit à écrire leurs calories (voir Health Connect)."}
-      </p>
+      </p>}
+      {onOpenMetab && cal.rows.some((r) => r.basal) && (
+        <button onClick={onOpenMetab} style={{ marginTop: 8, background: "none", border: "none", padding: 0, color: C.herb, fontSize: 12, fontWeight: 600 }}>
+          📈 Métabolisme de base dans le temps ›
+        </button>
+      )}
+      {editing && <SessionKcalSheet q={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onToggle && onToggle(null); }} />}
     </div>
+  );
+}
+
+/** Corriger les calories d'une séance reçue d'une autre appli (valeur affichée par l'appli de la montre). */
+function SessionKcalSheet({ q, onClose, onSaved }) {
+  const hc = loadHC();
+  const cur = findSessionFix(q, hc)?.kcal;
+  const [val, setVal] = useState(cur != null ? String(cur) : "");
+  const [scope, setScope] = useState("type");
+  const h = q.min / 60;
+  const kcal = Number(String(val).replace(",", "."));
+  const ok = kcal > 0 && kcal < 5000;
+  const newMet = ok && q.kg && h ? Math.round((kcal / (q.kg * h) + 1) * 10) / 10 : null;
+  const defMet = SESSION_MET[q.type];
+  const curMet = sessionMet(q.type, hc);
+  function save() {
+    let next = loadHC();
+    if (scope === "seance") next = setSessionFix(next, q, { kcal: Math.round(kcal) });
+    else {
+      next = setSessionFix(next, q, null);
+      next = { ...next, sessionMet: { ...(next.sessionMet || {}), [q.type]: Math.min(15, Math.max(1.5, newMet)) } };
+    }
+    saveHC(next);
+    onSaved();
+  }
+  function ignore() { saveHC(setSessionFix(loadHC(), q, { ignore: true })); onSaved(); }
+  function reset() {
+    let next = setSessionFix(loadHC(), q, null);
+    if (scope === "type") { const sm = { ...(next.sessionMet || {}) }; delete sm[q.type]; next = { ...next, sessionMet: sm }; }
+    saveHC(next);
+    onSaved();
+  }
+  const opt = (k, title, sub) => (
+    <button onClick={() => setScope(k)} style={{
+      width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 10, marginBottom: 6,
+      border: `1.5px solid ${scope === k ? C.herb : C.line}`, background: scope === k ? C.sage : "transparent", color: C.ink,
+    }}>
+      <span style={{ display: "block", fontSize: 13.5, fontWeight: 600 }}>{title}</span>
+      <span style={{ display: "block", fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>{sub}</span>
+    </button>
+  );
+  return (
+    <Sheet title={`${q.label} · ${q.min} min`} onClose={onClose}>
+      <p style={{ margin: "0 0 10px", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5 }}>
+        Estimation actuelle : <b style={{ color: C.ink }}>{q.est} kcal</b>{q.manual === "séance" ? " (saisie pour cette séance)" : ` (intensité ${String(curMet).replace(".", ",")} MET${curMet !== defMet ? ", ajustée" : ""})`}.
+        {" "}{q.app} n'en a envoyé que {q.rec} à Health Connect.
+      </p>
+      <label style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Calories de la séance affichées par {q.app}</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 12px" }}>
+        <input inputMode="numeric" value={val} onChange={(e) => setVal(e.target.value)} placeholder="ex. 140" autoFocus
+          style={{ ...inputStyle, flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: MONO, fontSize: 15 }} />
+        <span style={{ fontSize: 13, color: C.inkSoft }}>kcal</span>
+      </div>
+      {opt("type", `Ajuster toutes mes séances de ${q.label.toLowerCase()}`,
+        newMet ? `L'intensité passe de ${String(curMet).replace(".", ",")} à ${String(newMet).replace(".", ",")} MET : les prochaines séances (et celles des 7 derniers jours) sont recalculées.` : "L'intensité est déduite de ta valeur et réutilisée pour les autres séances de ce type.")}
+      {opt("seance", "Cette séance seulement", "Les autres séances gardent l'estimation automatique.")}
+      <button onClick={save} disabled={!ok} style={{
+        width: "100%", marginTop: 6, padding: "12px 0", borderRadius: 12, border: "none", background: ok ? C.herb : C.line, color: C.onAccent, fontWeight: 600, fontSize: 14,
+      }}>Enregistrer</button>
+      {(q.manual || curMet !== defMet) && (
+        <button onClick={reset} style={{ width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 12, border: `1.5px solid ${C.line}`, background: "transparent", color: C.inkSoft, fontWeight: 600, fontSize: 13 }}>
+          Revenir à l'estimation automatique{scope === "type" ? ` (${q.label.toLowerCase()})` : ""}
+        </button>
+      )}
+      <button onClick={ignore} style={{ width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 12, border: `1.5px solid ${C.berry}`, background: "transparent", color: C.berry, fontWeight: 600, fontSize: 13 }}>
+        C'est un doublon : ignorer cette séance
+      </button>
+    </Sheet>
   );
 }

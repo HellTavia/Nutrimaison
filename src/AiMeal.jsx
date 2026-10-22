@@ -126,8 +126,8 @@ export function AiTextMeal({ apiKey, mealLabel, onAddEntries, onSaveRecipe, onSa
   if (!apiKey) {
     return (
       <div style={box}>
-        <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Clé Gemini nécessaire</p>
-        <p style={{ ...small, marginTop: 0 }}>Cet onglet utilise ta clé Gemini gratuite (Profil → Intelligence artificielle Gemini). Sans clé, utilise Manuel ou Scanner.</p>
+        <p style={{ margin: "0 0 6px", fontWeight: 600 }}>Clé d'IA nécessaire</p>
+        <p style={{ ...small, marginTop: 0 }}>Cet onglet utilise ta clé d'IA : Gemini (gratuite) ou Grok, dans Moi → Intelligence artificielle. Sans clé, utilise Manuel ou Scanner.</p>
       </div>
     );
   }

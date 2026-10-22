@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Les auteurs de NutriMaison
 /* Écran « Ajouter » : recherche, favoris, scanner, photo, texte IA, recettes */
 import React, { useState, useEffect, useRef } from "react";
-import { Camera, ChevronLeft, Loader2, Plus, ScanLine, Search, ShoppingBag, Sparkles, Trash2, X } from "lucide-react";
+import { Camera, ChefHat, ChevronLeft, ChevronRight, FileText, Layers, Loader2, Plus, ScanLine, Search, ShoppingBag, Sparkles, Trash2, X } from "lucide-react";
 import { NewProductForm, Per100Fields } from "../MealTools.jsx";
+import { LabelScan } from "../LabelScan.jsx";
 import { openCamera } from "../scanner.js";
 import { C, NumInput, Tag, inputStyle, round } from "../shared.jsx";
 import { AiTextMeal, aiFoodPer100 } from "../AiMeal.jsx";
@@ -55,11 +56,11 @@ export function MealCamera({ onCapture, onCancel }) {
 }
 
 /** Favoris et aliments récents : un appui sur « + » ajoute la même quantité que la dernière fois. */
-export function QuickLists({ favorites, recents, onToggleFavorite, onQuickAdd, onPick, templates, onAddTemplate, onDeleteTemplate }) {
-  const [tab, setTab] = useState(favorites?.length ? "fav" : "rec");
+export function QuickLists({ favorites, recents, onToggleFavorite, onQuickAdd, onPick, templates, onAddTemplate, onDeleteTemplate, initialTab }) {
+  const [tab, setTab] = useState(initialTab || (favorites?.length ? "fav" : "rec"));
   const favKeys = new Set((favorites || []).map((f) => f.key));
   const list = tab === "fav" ? favorites || [] : recents || [];
-  if (!(favorites || []).length && !(recents || []).length && !(templates || []).length) return null;
+  if (!(favorites || []).length && !(recents || []).length && !(templates || []).length && initialTab !== "tpl") return null;
   const pill = (active) => ({ padding: "5px 12px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 600, background: active ? C.herb : C.paperDark, color: active ? C.onAccent : C.inkSoft });
   return (
     <div style={{ marginBottom: 18 }}>
@@ -71,7 +72,7 @@ export function QuickLists({ favorites, recents, onToggleFavorite, onQuickAdd, o
       {tab === "tpl" ? (
         (templates || []).length === 0 ? (
           <p style={{ fontSize: 12, color: C.inkSoft, fontStyle: "italic", margin: 0 }}>
-            Aucun repas type. Sur l'accueil, touche ⋯ à côté d'un repas → « Enregistrer comme repas type ».
+            Aucun repas type. Sur l'accueil, déplie un repas puis touche « Copier, repas type, portions… » → « Enregistrer comme repas type ».
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -133,6 +134,13 @@ export function ManualBarcode({ onSubmit, busy }) {
   );
 }
 
+/* Les façons d'ajouter, sous la recherche (remplacent les anciens onglets) */
+const ACTIONS = [
+  ["scanner", "Code-barres", ScanLine], ["etiquette", "Étiquette", FileText], ["photo", "Photo du plat", Camera],
+  ["ia", "Texte IA", Sparkles], ["recette", "Recette", ChefHat], ["tpl", "Repas type", Layers],
+];
+const MEAL_SHORT = { petitdej: "Petit-déj.", dejeuner: "Déjeuner", diner: "Dîner", collation: "Collation" };
+
 export function AddView(props) {
   const {
     addMeal, setAddMeal, addTab, setAddTab, onBack,
@@ -140,7 +148,7 @@ export function AddView(props) {
     favorites, recents, onToggleFavorite, onQuickAdd, onPickRecent,
     selectedFood, setSelectedFood, grams, setGrams, onConfirmManual,
     scanning, scanError, videoRef, onStartScan, onStopScan,
-    scanMissing, onCancelMissing, onSaveNewProduct, mealTemplates, onAddTemplate, onDeleteTemplate,
+    scanMissing, onCancelMissing, onSaveNewProduct, onSaveLabelProduct, mealTemplates, onAddTemplate, onDeleteTemplate,
     torchAvailable, torchOn, onToggleTorch, scanBusy, onScanPhoto, onScanManual,
     photoDetecting, photoDetections, photoAiResults, photoError, capturedImage, photoInputRef, onPickPhoto, onPhotoFileChange, onPickPhotoDetection, onPhotoFile, onCancelPhoto,
     onAddAiPhotoResults, onRemoveAiPhotoResult, hasGeminiKey, geminiKey, onAddEntries, onSaveFoods, onSaveAiRecipe,
@@ -151,6 +159,7 @@ export function AddView(props) {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [aiLookup, setAiLookup] = useState(null);
   const [quickMsg, setQuickMsg] = useState(null);
+  const [quickTab, setQuickTab] = useState(null); // « Repas type » ouvre directement la liste des repas types
   const [cfName, setCfName] = useState("");
   const [cfKcal, setCfKcal] = useState("");
   const [cfProt, setCfProt] = useState("");
@@ -173,31 +182,20 @@ export function AddView(props) {
 
   return (
     <div style={{ padding: "24px 20px 8px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.herb, padding: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <button onClick={addTab === "manuel" ? onBack : () => setAddTab("manuel")} aria-label="Retour" style={{ background: "none", border: "none", color: C.herb, padding: 6 }}>
           <ChevronLeft size={20} />
         </button>
-        <h2 style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 20 }}>Ajouter un aliment</h2>
+        <h2 style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 21 }}>{addTab === "manuel" ? "Ajouter" : (ACTIONS.find((a) => a[0] === addTab)?.[1] || "Ajouter")}</h2>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 12, color: C.inkSoft, marginBottom: 6 }}>Repas</p>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {MEAL_ORDER.map((m) => (
-            <button key={m} onClick={() => setAddMeal(m)} style={{
-              flexShrink: 0, padding: "7px 12px", borderRadius: 999, border: `1px solid ${addMeal === m ? C.herb : C.line}`,
-              background: addMeal === m ? C.herb : C.card, color: addMeal === m ? C.onAccent : C.ink, fontSize: 12.5, fontWeight: 500,
-            }}>{MEAL_LABELS[m]}</button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 18, background: C.paperDark, borderRadius: 12, padding: 4 }}>
-        {[["manuel", "Manuel"], ["scanner", "Scanner"], ["photo", "Photo"], ["ia", "Texte IA"], ["recette", "Recette"]].map(([k, label]) => (
-          <button key={k} onClick={() => setAddTab(k)} style={{
-            flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
-            background: addTab === k ? C.card : "transparent", color: addTab === k ? C.herb : C.inkSoft,
-          }}>{label}</button>
+      <div style={{ display: "flex", gap: 3, marginBottom: 14, background: C.paperDark, borderRadius: 12, padding: 3 }}>
+        {MEAL_ORDER.map((m) => (
+          <button key={m} onClick={() => setAddMeal(m)} style={{
+            flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap",
+            background: addMeal === m ? C.card : "transparent", color: addMeal === m ? C.herb : C.inkSoft,
+            boxShadow: addMeal === m ? "0 1px 2px rgba(0,0,0,.08)" : "none",
+          }}>{MEAL_SHORT[m] || MEAL_LABELS[m]}</button>
         ))}
       </div>
 
@@ -206,15 +204,29 @@ export function AddView(props) {
           <div style={{ position: "relative", marginBottom: 14 }}>
             <Search size={16} color={C.inkSoft} style={{ position: "absolute", left: 12, top: 12 }} />
             <input
-              value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Rechercher un aliment…"
-              style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.card, fontSize: 14, outline: "none" }}
+              value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Aliment, marque, recette…"
+              style={{ width: "100%", padding: "13px 12px 13px 38px", borderRadius: 14, border: `1.5px solid ${C.herb}`, background: C.card, fontSize: 14.5, outline: "none" }}
             />
           </div>
+
+          {!selectedFood && !searchQ.trim() && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+              {ACTIONS.map(([k, label, Icon]) => (
+                <button key={k} onClick={() => (k === "tpl" ? setQuickTab("tpl") : setAddTab(k))} style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 7, padding: "13px 4px 11px", borderRadius: 16,
+                  border: `1px solid ${k === "tpl" && quickTab === "tpl" ? C.herb : C.line}`, background: C.card, color: C.ink,
+                }}>
+                  <span style={{ width: 36, height: 36, borderRadius: 11, background: C.sage, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon size={18} /></span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700 }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {!selectedFood ? (
             <div>
               {!searchQ.trim() && (
-                <QuickLists favorites={favorites} recents={recents} onToggleFavorite={onToggleFavorite}
+                <QuickLists key={quickTab || "auto"} initialTab={quickTab} favorites={favorites} recents={recents} onToggleFavorite={onToggleFavorite}
                   templates={mealTemplates} onDeleteTemplate={onDeleteTemplate}
                   onAddTemplate={(t) => { onAddTemplate(t); setQuickMsg(`${t.name} ajouté ✓`); setTimeout(() => setQuickMsg(null), 1800); }}
                   onQuickAdd={(it) => { onQuickAdd(it); setQuickMsg(`${it.name} ajouté ✓`); setTimeout(() => setQuickMsg(null), 1800); }}
@@ -231,6 +243,7 @@ export function AddView(props) {
                   </div>
                 ) : null;
               })()}
+              {(searchQ.trim() || !((favorites || []).length || (recents || []).length)) && <>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 6px", gap: 8 }}>
                 <p style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, textTransform: "uppercase", letterSpacing: 0.4, margin: 0 }}>Aliments de base</p>
                 {searchQ.trim() && <span style={{ fontSize: 10, color: C.inkSoft }}>Source : Anses, Ciqual 2025</span>}
@@ -250,6 +263,7 @@ export function AddView(props) {
                 ))}
                 {filteredFoods.length === 0 && <p style={{ fontSize: 13, color: C.inkSoft, fontStyle: "italic" }}>Aucun résultat.</p>}
               </div>
+              </>}
 
               {searchQ.trim().length >= 2 && (
                 <div>
@@ -461,18 +475,29 @@ export function AddView(props) {
 
           <ManualBarcode onSubmit={onScanManual} busy={scanBusy} />
 
+          <button onClick={() => setAddTab("etiquette")} style={{
+            width: "100%", marginTop: 16, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 16,
+            border: `1px solid ${C.line}`, background: C.card, color: C.ink, textAlign: "left",
+          }}>
+            <span style={{ width: 34, height: 34, borderRadius: 10, background: C.sage, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FileText size={17} /></span>
+            <span style={{ flex: 1 }}><b style={{ display: "block", fontSize: 13.5 }}>Pas de code-barres ?</b><span style={{ fontSize: 12, color: C.inkSoft }}>Scanne l'étiquette nutritionnelle</span></span>
+            <ChevronRight size={17} color={C.inkSoft} />
+          </button>
+
           <p style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 14, lineHeight: 1.5 }}>
-            Pas de code-barres sous la main ? Utilise l'onglet <strong>Manuel</strong> pour rechercher le produit par son nom.
+            Tu peux aussi rechercher le produit par son nom : reviens en arrière et utilise la recherche.
           </p>
         </div>
       )}
+
+      {addTab === "etiquette" && <LabelScan apiKey={hasGeminiKey ? geminiKey : ""} onSave={onSaveLabelProduct} />}
 
       {addTab === "photo" && (
         <div>
           <p style={{ fontSize: 12.5, color: C.inkSoft, margin: "0 0 12px" }}>
             {hasGeminiKey
-              ? "Reconnaissance IA précise via ta clé Gemini personnelle (gratuite, jamais partagée)."
-              : "Détection locale et gratuite (aucune donnée envoyée nulle part). Reconnaît un nombre limité d'aliments — ajoute ta clé Gemini gratuite dans Profil pour une précision bien meilleure."}
+              ? "Reconnaissance IA précise via ta clé d'IA personnelle (jamais partagée)."
+              : "Détection locale et gratuite (aucune donnée envoyée nulle part). Reconnaît un nombre limité d'aliments — ajoute une clé d'IA (Gemini, gratuite) dans Moi → Intelligence artificielle pour une précision bien meilleure."}
           </p>
           <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }}
             onChange={(e) => { onPhotoFileChange(e); e.target.value = ""; }} />

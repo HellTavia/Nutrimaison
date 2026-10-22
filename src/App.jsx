@@ -8,7 +8,7 @@ import { addToShopping } from "./Fridge.jsx";
 import { loadPlan, savePlan, planItemToEntries } from "./planning.js";
 import { PlanningView } from "./views/Planning.jsx";
 import { decodeImageFile, startLiveScan } from "./scanner.js";
-import { geminiGenerate, parseJSONLoose, shrinkImage } from "./gemini.js";
+import { geminiGenerate, parseJSONLoose, shrinkImage, activeAiKey, aiProviderLabel } from "./gemini.js";
 import { C, addDays, loadAllDays, loadJSON, round, saveJSON, stepsKcal, storage, todayISO, uid } from "./shared.jsx";
 import { SPORT_DEFAULTS, SportView, workoutsKcalOn } from "./Sport.jsx";
 import { WeightView, armyBodyFat, latestBodyFat, navyBodyFat, useWeightStats } from "./Weight.jsx";
@@ -20,6 +20,7 @@ import { BRAND_DB, COCO_FOOD_LABELS, FOOD_DB, MEAL_ORDER, MOBILENET_FOOD_KEYWORD
 import { Dashboard, scaleEntry } from "./views/Dashboard.jsx";
 import { AddView } from "./views/AddView.jsx";
 import { RecipeBuilder, RecipeDetail, RecipesView } from "./views/Recipes.jsx";
+import { ImportRecipeSheet } from "./RecipeImport.jsx";
 import { ProfileView, runHcSyncRef } from "./views/Profile.jsx";
 import { APP_VERSION } from "./version.js";
 
@@ -83,6 +84,20 @@ export default function App() {
   const [builderPasCher, setBuilderPasCher] = useState(false);
   const [builderCat, setBuilderCat] = useState("Plat");
   const [builderIngredients, setBuilderIngredients] = useState([]);
+  const [builderSteps, setBuilderSteps] = useState(null);   // null = création classique ; tableau = recette importée
+  const [builderSource, setBuilderSource] = useState(null); // { author, url, origine }
+  const [importOpen, setImportOpen] = useState(false);
+  function openImported(r) {
+    setImportOpen(false);
+    setBuilderName(r.name); setBuilderServings(r.servings); setBuilderCat(r.categorie); setBuilderPasCher(false);
+    setBuilderIngredients(r.ingredients); setBuilderSteps(r.steps || []);
+    setBuilderSource({ author: r.author || "", url: r.url || "", origine: r.origine || "Import" });
+    setSelectedRecipe(null); setShowBuilder(true); setView("recipes");
+  }
+  function resetBuilder() {
+    setShowBuilder(false); setBuilderName(""); setBuilderServings(2); setBuilderIngredients([]); setBuilderPasCher(false); setBuilderCat("Plat");
+    setBuilderSteps(null); setBuilderSource(null);
+  }
 
   /* ---- Sport, poids, mensurations ---- */
   const [workouts, setWorkouts] = useState(() => loadJSON("workouts", []));
@@ -94,6 +109,7 @@ export default function App() {
   const weightStats = useWeightStats(weights, allDays);
   const bodyFat = useMemo(() => latestBodyFat(measures, weights, personalInfo, personalInfo.bfMethod), [measures, weights, personalInfo]);
   const [bodyTab, setBodyTab] = useState("poids");
+  const [bodyFrom, setBodyFrom] = useState("dashboard"); // où revenir en quittant Corps & progrès
   function saveWorkouts(next) { setWorkouts(next); saveJSON("workouts", next); scheduleHcWrite(); }
   function saveSportSettings(next) { setSportSettings(next); saveJSON("sportSettings", next); }
   const [weightSources, setWeightSources] = useState(() => loadJSON("weightSources", {}));
@@ -125,10 +141,13 @@ export default function App() {
   const [hcVersion, setHcVersion] = useState(0);
   /** Inclure / exclure une appli de la moyenne des calories dépensées. */
   function toggleCalSource(origin) {
-    const s = loadHC();
-    const ex = new Set(s.calExclude || []);
-    ex.has(origin) ? ex.delete(origin) : ex.add(origin);
-    saveHC({ ...s, calExclude: [...ex] });
+    // sans appli : simple rafraîchissement (après une correction de séance)
+    if (origin) {
+      const s = loadHC();
+      const ex = new Set(s.calExclude || []);
+      ex.has(origin) ? ex.delete(origin) : ex.add(origin);
+      saveHC({ ...s, calExclude: [...ex] });
+    }
     setHcVersion((v) => v + 1);
   }
   const hcCtxRef = useRef(null);
@@ -268,8 +287,9 @@ export default function App() {
     try { await storage.set("personalInfo", JSON.stringify(next), false); } catch (e) {}
   }
   function addCustomFood(food) {
+    const extra = Object.fromEntries(["sugar", "fiber", "satfat", "salt", "portion"].filter((k) => food[k] != null).map((k) => [k, food[k]]));
     const entry = { id: "custom_" + uid(), name: food.name, kcal: food.kcal, prot: food.prot, carbs: food.carbs, fat: food.fat, brand: true, mine: true,
-      ...(food.barcode ? { barcode: String(food.barcode) } : {}) };
+      ...extra, ...(food.barcode ? { barcode: String(food.barcode) } : {}) };
     // même nom (ou même code-barres) : on remplace l'ancienne version plutôt que de créer un doublon
     const k = norm(food.name);
     saveCustomFoods([...customFoods.filter((f) => norm(f.name) !== k && !(food.barcode && f.barcode === String(food.barcode))), entry]);
@@ -689,7 +709,7 @@ export default function App() {
     const url = URL.createObjectURL(file);
     setCapturedImage(url);
 
-    const geminiKey = (personalInfo.geminiApiKey || "").trim();
+    const geminiKey = activeAiKey(personalInfo);
     if (geminiKey) {
       try {
         const results = await analyzeWithGemini(file, geminiKey, (t) => setPhotoError(t), ctrl.signal);
@@ -700,7 +720,7 @@ export default function App() {
         return;
       } catch (e) {
         if (e.cancelled || ctrl.signal.aborted) return;
-        setPhotoError("Gemini : " + (e.message || "erreur inconnue") + " — détection locale utilisée à la place.");
+        setPhotoError(aiProviderLabel() + " : " + (e.message || "erreur inconnue") + " — détection locale utilisée à la place.");
       }
     }
 
@@ -830,16 +850,17 @@ export default function App() {
   function saveCustomRecipe() {
     if (!builderName.trim() || builderIngredients.length === 0) return;
     const recipe = {
-      id: uid(), name: builderName.trim(), categorie: builderCat, origine: "Perso", pasCher: builderPasCher,
+      id: uid(), name: builderName.trim(), categorie: builderCat, origine: builderSource?.origine || "Perso", pasCher: builderPasCher,
       servings: builderServings,
       ingredients: builderIngredients.map((i) => ({
         foodId: i.foodId || null, name: i.name, kcal100: i.kcal100, prot100: i.prot100, carbs100: i.carbs100, fat100: i.fat100,
-        grams: Number(i.grams) || 0, brand: !!i.brand,
+        grams: Number(i.grams) || 0, brand: !!i.brand, ...(i.orig ? { orig: i.orig } : {}),
       })),
-      steps: [],
+      steps: (builderSteps || []).map((x) => x.trim()).filter(Boolean),
+      ...(builderSource && (builderSource.author || builderSource.url) ? { source: { author: builderSource.author || "", url: builderSource.url || "" } } : {}),
     };
     saveCustomRecipes([...customRecipes, recipe]);
-    setShowBuilder(false); setBuilderName(""); setBuilderServings(2); setBuilderIngredients([]); setBuilderPasCher(false); setBuilderCat("Plat");
+    resetBuilder();
   }
   /** Change la catégorie d'une recette perso (Petit-déjeuner, Plat, Soupe, Dessert, Snack). */
   function setRecipeCategory(id, categorie) {
@@ -870,7 +891,7 @@ export default function App() {
     );
   }
 
-  const navView = view === "recipeDetailFromAdd" || (view === "recipes" && (selectedRecipe || showBuilder)) ? "recipes" : (view === "body" || view === "bilan") ? "dashboard" : view;
+  const navView = view === "recipeDetailFromAdd" || (view === "recipes" && (selectedRecipe || showBuilder)) ? "recipes" : view === "body" ? bodyFrom : view === "bilan" ? "dashboard" : view;
 
   return (
     <div style={{
@@ -903,7 +924,7 @@ export default function App() {
             onSaveTemplate={saveMealTemplate} onDeleteTemplate={deleteMealTemplate} onAddTemplate={addMealTemplate}
             activity={activity} sportSettings={sportSettings} onSetSteps={setSteps}
             weightStats={weightStats} bodyFat={bodyFat}
-            onOpenSport={() => setView("sport")} onOpenBody={(t) => { setBodyTab(t || "poids"); setView("body"); }}
+            onOpenSport={() => setView("sport")} onOpenBody={(t) => { setBodyTab(t || "poids"); setBodyFrom("dashboard"); setView("body"); window.scrollTo(0, 0); }}
             onOpenBilan={() => setView("bilan")}
           />
         )}
@@ -921,6 +942,7 @@ export default function App() {
             grams={grams} setGrams={setGrams} onConfirmManual={confirmManualAdd}
             scanning={scanning} scanError={scanError} videoRef={videoRef}
             scanMissing={scanMissing} onCancelMissing={() => setScanMissing(null)}
+            onSaveLabelProduct={(food, grams) => { const e = addCustomFood(food); if (grams) { setAddTab("manuel"); setSelectedFood(e); setGrams(grams); } }}
             onSaveNewProduct={(food) => { const e = addCustomFood(food); setScanMissing(null); setScanError(null); setAddTab("manuel"); setSelectedFood(e); setGrams(100); }}
             mealTemplates={mealTemplates} onAddTemplate={(t) => addMealTemplate(addMeal, t)} onDeleteTemplate={deleteMealTemplate}
             onStartScan={startScan} onStopScan={stopScan}
@@ -931,8 +953,8 @@ export default function App() {
             onPhotoFileChange={(e) => analyzePhoto(e.target.files[0])} onPickPhotoDetection={pickPhotoDetection}
             onPhotoFile={(f) => analyzePhoto(f)} onCancelPhoto={cancelPhoto}
             onAddAiPhotoResults={addAiPhotoResultsToJournal} onRemoveAiPhotoResult={removeAiPhotoResult}
-            hasGeminiKey={!!(personalInfo.geminiApiKey || "").trim()}
-            geminiKey={(personalInfo.geminiApiKey || "").trim()}
+            hasGeminiKey={!!activeAiKey(personalInfo)}
+            geminiKey={activeAiKey(personalInfo)}
             onAddEntries={(entries) => addEntries(addMeal, entries)}
             onSaveFoods={addCustomFoodsBulk}
             onSaveAiRecipe={(r) => saveCustomRecipes([...customRecipes, r])}
@@ -969,11 +991,12 @@ export default function App() {
                 goalKcal={goals.kcal} haveNames={[...[...pantry].map((id) => foodById[id]?.name).filter(Boolean), ...fridgeExtras]}
                 onAddShopping={addShoppingItems} onLog={logPlanned} />
             }
-            geminiKey={(personalInfo.geminiApiKey || "").trim()}
+            geminiKey={activeAiKey(personalInfo)}
             fridgeCtx={{ objectif: personalInfo.objectif, kcalLeft: currentDate === todayISO() ? goals.kcal - totals.kcal : goals.kcal }}
             onSaveRecipe={(r) => saveCustomRecipes([...customRecipes, r])}
             onSelect={(r, isCustom) => { setSelectedRecipe(r); setRecipeIsCustom(isCustom); setServingsToAdd(1); }}
             onNewRecipe={() => setShowBuilder(true)}
+            onImportRecipe={() => setImportOpen(true)}
             extLoading={extLoading} extResults={extResults} extError={extError}
             onSearchExternal={searchExternalRecipes} onSaveExternalRecipe={saveExternalRecipe}
           />
@@ -1003,8 +1026,13 @@ export default function App() {
             onAddIngredient={addBuilderIngredient}
             onSave={saveCustomRecipe}
             customFoods={customFoods}
-            onCancel={() => { setShowBuilder(false); setBuilderIngredients([]); setBuilderName(""); }}
+            onCancel={resetBuilder}
+            {...(builderSteps ? { title: "Vérifier la recette", steps: builderSteps, setSteps: setBuilderSteps, source: builderSource, setSource: setBuilderSource } : {})}
           />
+        )}
+        {importOpen && (
+          <ImportRecipeSheet aiKey={activeAiKey(personalInfo)} geminiKey={(personalInfo.geminiApiKey || "").replace(/\s+/g, "")}
+            onDone={openImported} onClose={() => setImportOpen(false)} />
         )}
 
         {view === "bilan" && (
@@ -1019,13 +1047,13 @@ export default function App() {
         {view === "body" && (
           <WeightView key={bodyTab} initialTab={bodyTab} weights={weights} onSaveWeights={saveWeights} measures={measures} onSaveMeasures={saveMeasures}
             personalInfo={personalInfo} onSavePersonalInfo={savePersonalInfo} days={allDays} goals={goals}
-            onApplyKcal={applyKcalGoal} onBack={() => setView("dashboard")} />
+            onApplyKcal={applyKcalGoal} onBack={() => setView(bodyFrom)} />
         )}
 
         {view === "profile" && (
           <ProfileView goals={goals} onSave={saveGoals} personalInfo={personalInfo} onSavePersonalInfo={savePersonalInfo}
             sportSettings={sportSettings} onSaveSportSettings={saveSportSettings} bodyFat={bodyFat}
-            weightStats={weightStats} onOpenBody={(t) => { setBodyTab(t || "poids"); setView("body"); }} />
+            weightStats={weightStats} onOpenBody={(t) => { setBodyTab(t || "poids"); setBodyFrom("profile"); setView("body"); window.scrollTo(0, 0); }} />
         )}
 
         <BottomNav view={navView}
@@ -1045,7 +1073,7 @@ function BottomNav({ view, onNav }) {
     ["recipes", "Recettes", BookOpen],
     ["add", "Ajouter", Plus],
     ["sport", "Sport", Dumbbell],
-    ["profile", "Profil", User],
+    ["profile", "Moi", User],
   ];
   return (
     <div style={{

@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Les auteurs de NutriMaison
 /* Recettes : liste, Mon frigo, détail, création */
 import React, { useState, useEffect, useMemo } from "react";
-import { CalendarDays, BookOpen, ChefHat, ChevronLeft, Loader2, Minus, Plus, Salad, Search, ShoppingBag, Trash2, Wallet, X } from "lucide-react";
+import { CalendarDays, BookOpen, ChefHat, ChevronLeft, Download, ExternalLink, Loader2, Minus, Plus, Salad, Search, ShoppingBag, Trash2, Wallet, X } from "lucide-react";
+import { openExternal } from "../updates.js";
 import { PlanRecipeSheet } from "./Planning.jsx";
 import { FridgeAi, FridgeInput, ShoppingList } from "../Fridge.jsx";
 import { C, NumInput, SectionTitle, Tag, round } from "../shared.jsx";
@@ -54,7 +55,7 @@ export function RecipeCard({ r, usage, onSelect, extra }) {
   );
 }
 
-export function RecipesView({ recipeTab, setRecipeTab, allRecipes, frigoRecipes, usage, pantry, setPantry, onSelect, onNewRecipe,
+export function RecipesView({ recipeTab, setRecipeTab, allRecipes, frigoRecipes, usage, pantry, setPantry, onSelect, onNewRecipe, onImportRecipe,
   extLoading, extResults, extError, onSearchExternal, onSaveExternalRecipe,
   fridgeExtras, setFridgeExtras, shopping, setShopping, onAddShopping, geminiKey, fridgeCtx, onSaveRecipe, planningView, onAddToMeal }) {
   const tab = ["mes", "idees", "semaine"].includes(recipeTab) ? recipeTab : "idees";
@@ -111,10 +112,16 @@ export function RecipesView({ recipeTab, setRecipeTab, allRecipes, frigoRecipes,
 
         {tab === "mes" && (
           <div>
-            <button onClick={onNewRecipe} style={{
-              width: "100%", padding: "11px 0", borderRadius: 12, border: `1.5px dashed ${C.herb}`, background: C.sage,
-              color: C.herb, fontWeight: 600, fontSize: 13.5, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}><Plus size={16} /> Créer une recette</button>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button onClick={onNewRecipe} style={{
+                flex: 1, padding: "11px 0", borderRadius: 12, border: `1.5px dashed ${C.herb}`, background: C.sage,
+                color: C.herb, fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}><Plus size={16} /> Créer</button>
+              {onImportRecipe && <button onClick={onImportRecipe} style={{
+                flex: 1.4, padding: "11px 0", borderRadius: 12, border: `1.5px solid ${C.herb}`, background: "transparent",
+                color: C.herb, fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}><Download size={15} /> Importer (Insta, lien…)</button>}
+            </div>
             {mineCats.length > 1 && mine.length > 1 && (
               <div className="scrollx" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {mineCats.map((c) => <button key={c} onClick={() => setMineCat(c)} style={chipStyle(mineCat === c)}>{c}</button>)}
@@ -320,6 +327,13 @@ export function RecipeDetail({ recipe, isCustom, servingsToAdd, setServingsToAdd
         )}
       </div>
 
+      {(recipe.source?.author || recipe.source?.url) && (
+        <p style={{ fontSize: 12.5, color: C.inkSoft, margin: "0 0 14px", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          Source : {recipe.source.author && <strong style={{ color: C.ink }}>@{recipe.source.author}</strong>}
+          {recipe.source.url && <button onClick={() => openExternal(recipe.source.url)} style={{ background: "none", border: "none", padding: 0, color: C.herb, fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+            voir le post <ExternalLink size={12} /></button>}
+        </p>
+      )}
       {recipe.steps && recipe.steps.length > 0 && (
         <>
           <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15, margin: "0 0 8px" }}>Préparation</p>
@@ -374,7 +388,7 @@ export function RecipeDetail({ recipe, isCustom, servingsToAdd, setServingsToAdd
   );
 }
 
-export function RecipeBuilder({ name, setName, servings, setServings, pasCher, setPasCher, ingredients, setIngredients, onAddIngredient, onSave, onCancel, customFoods, cat, setCat }) {
+export function RecipeBuilder({ name, setName, servings, setServings, pasCher, setPasCher, ingredients, setIngredients, onAddIngredient, onSave, onCancel, customFoods, cat, setCat, title, steps, setSteps, source, setSource }) {
   const [pickerKey, setPickerKey] = useState(null);
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerOffResults, setPickerOffResults] = useState([]);
@@ -418,7 +432,7 @@ export function RecipeBuilder({ name, setName, servings, setServings, pasCher, s
     const isBrand = !foodById[food.id];
     setIngredients(ingredients.map((i) => (i.key === key ? {
       ...i, foodId: isBrand ? null : food.id, name: food.name,
-      kcal100: food.kcal, prot100: food.prot, carbs100: food.carbs, fat100: food.fat, brand: isBrand,
+      kcal100: food.kcal, prot100: food.prot, carbs100: food.carbs, fat100: food.fat, brand: isBrand, ai: false, ciqual: !isBrand, picked: true,
     } : i)));
     setPickerKey(null); setPickerQuery(""); setPickerOffResults([]);
   }
@@ -427,9 +441,23 @@ export function RecipeBuilder({ name, setName, servings, setServings, pasCher, s
     <div style={{ padding: "24px 20px 8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: C.herb, padding: 6 }}><ChevronLeft size={20} /></button>
-        <h2 style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 20 }}>Nouvelle recette</h2>
+        <h2 style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 20 }}>{title || "Nouvelle recette"}</h2>
       </div>
 
+      {setSource && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input value={source?.author || ""} onChange={(e) => setSource({ ...source, author: e.target.value.replace(/^@/, "") })} placeholder="Créateur (@nom)"
+            style={{ flex: 1, minWidth: 0, padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.line}`, fontSize: 12.5 }} />
+          <input value={source?.url || ""} onChange={(e) => setSource({ ...source, url: e.target.value })} placeholder="Lien de la vidéo" inputMode="url"
+            style={{ flex: 1.3, minWidth: 0, padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.line}`, fontSize: 12.5 }} />
+        </div>
+      )}
+      {ingredients.some((i) => i.ai || i.ciqual) && (
+        <p style={{ fontSize: 11.5, color: C.inkSoft, background: C.sage, borderRadius: 10, padding: "8px 10px", margin: "0 0 12px", lineHeight: 1.5 }}>
+          <strong style={{ color: C.herb }}>{ingredients.filter((i) => i.ciqual).length}/{ingredients.length} ingrédients reliés à la table Ciqual</strong>.
+          Les autres gardent l'estimation de l'IA : touche 🔍 pour les relier à un aliment, et corrige les grammes si besoin.
+        </p>
+      )}
       <label style={{ fontSize: 12, color: C.inkSoft }}>Nom de la recette</label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Poêlée maison"
         style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.line}`, marginTop: 4, marginBottom: 14, fontSize: 14 }} />
@@ -454,8 +482,11 @@ export function RecipeBuilder({ name, setName, servings, setServings, pasCher, s
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ing.name}</p>
                 <p style={{ margin: 0, fontSize: 11, color: C.inkSoft, fontFamily: "'IBM Plex Mono',monospace" }}>
-                  {Math.round(ing.kcal100)} kcal/100g{ing.brand ? " · marque" : ""}
+                  {Math.round(ing.kcal100)} kcal/100g{ing.ai ? "" : ing.brand ? " · marque" : ""}
+                  {ing.ai && <span style={{ color: C.ochre, fontFamily: "inherit" }}> · estimé IA</span>}
+                  {ing.ciqual && !ing.picked && ing.aiName && <span style={{ color: C.herb }}> · Ciqual ✓</span>}
                 </p>
+                {ing.orig && <p style={{ margin: 0, fontSize: 11, color: C.inkSoft, fontStyle: "italic" }}>{ing.orig}</p>}
               </div>
               <input type="number" value={ing.grams} onChange={(e) => updateGrams(ing.key, e.target.value)}
                 style={{ width: 58, padding: "7px 6px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }} />
@@ -515,6 +546,14 @@ export function RecipeBuilder({ name, setName, servings, setServings, pasCher, s
         <Plus size={14} /> Ajouter un ingrédient
       </button>
 
+      {setSteps && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: C.inkSoft }}>Préparation (une étape par ligne)</label>
+          <textarea value={(steps || []).join("\n")} onChange={(e) => setSteps(e.target.value.split("\n"))} rows={Math.min(10, Math.max(3, (steps || []).length + 1))}
+            placeholder="Étapes de la recette…"
+            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.line}`, marginTop: 4, fontSize: 13, lineHeight: 1.45, resize: "vertical" }} />
+        </div>
+      )}
       {setCat && <CatPicker value={cat} onChange={setCat} />}
       <button onClick={onSave} style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14 }}>
         Enregistrer la recette

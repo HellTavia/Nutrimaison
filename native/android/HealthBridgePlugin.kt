@@ -19,6 +19,7 @@ import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.LeanBodyMassRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.request.AggregateRequest
@@ -71,6 +72,7 @@ class HealthBridgePlugin : Plugin() {
         "activeCalories" to ActiveCaloriesBurnedRecord::class,
         "totalCalories" to TotalCaloriesBurnedRecord::class,
         "basal" to BasalMetabolicRateRecord::class,
+        "leanMass" to LeanBodyMassRecord::class,
     )
 
     /* ---------------------------------------------------------------- */
@@ -444,6 +446,66 @@ class HealthBridgePlugin : Plugin() {
                 } while (token != null)
             } catch (e: Exception) {}
             call.resolve(JSObject().put("records", out))
+        }
+    }
+
+    /**
+     * Historique du métabolisme de base : { start, end } → { records: [{ time, kcalDay, origin }] }
+     * (une valeur par mesure, en kcal par jour ; Withings en écrit une par jour). Les données de NutriMaison sont exclues.
+     */
+    @PluginMethod
+    fun readBasal(call: PluginCall) {
+        val start = inst(call.getLong("start") ?: return call.reject("start"))
+        val end = inst(call.getLong("end") ?: return call.reject("end"))
+        scope.launch {
+            try {
+                val out = JSArray()
+                var token: String? = null
+                do {
+                    val r = client.readRecords(ReadRecordsRequest(BasalMetabolicRateRecord::class, TimeRangeFilter.between(start, end), pageSize = 1000, pageToken = token))
+                    r.records.filter { it.metadata.dataOrigin.packageName != context.packageName }.forEach {
+                        out.put(JSObject().put("time", it.time.toEpochMilli()).put("kcalDay", it.basalMetabolicRate.inKilocaloriesPerDay)
+                            .put("origin", it.metadata.dataOrigin.packageName))
+                    }
+                    token = r.pageToken
+                } while (token != null)
+                call.resolve(JSObject().put("records", out))
+            } catch (e: Exception) { call.reject(e.message ?: "readBasal") }
+        }
+    }
+
+    /**
+     * Composition corporelle des AUTRES applis (balance Withings…) : { start, end } →
+     * { fat: [{ time, percent, origin }], lean: [{ time, kg, origin }] } ; un type non autorisé revient vide.
+     */
+    @PluginMethod
+    fun readBodyComp(call: PluginCall) {
+        val start = inst(call.getLong("start") ?: return call.reject("start"))
+        val end = inst(call.getLong("end") ?: return call.reject("end"))
+        scope.launch {
+            val range = TimeRangeFilter.between(start, end)
+            val fat = JSArray(); val lean = JSArray()
+            try {
+                var token: String? = null
+                do {
+                    val r = client.readRecords(ReadRecordsRequest(BodyFatRecord::class, range, pageSize = 1000, pageToken = token))
+                    r.records.filter { it.metadata.dataOrigin.packageName != context.packageName }.forEach {
+                        fat.put(JSObject().put("time", it.time.toEpochMilli()).put("percent", it.percentage.value).put("origin", it.metadata.dataOrigin.packageName))
+                    }
+                    token = r.pageToken
+                } while (token != null)
+            } catch (e: Exception) {}
+            try {
+                var token: String? = null
+                do {
+                    val r = client.readRecords(ReadRecordsRequest(LeanBodyMassRecord::class, range, pageSize = 1000, pageToken = token))
+                    r.records.filter { it.metadata.dataOrigin.packageName != context.packageName }.forEach {
+                        lean.put(JSObject().put("time", it.time.toEpochMilli()).put("kg", it.mass.inKilograms).put("origin", it.metadata.dataOrigin.packageName))
+                    }
+                    token = r.pageToken
+                } while (token != null)
+            } catch (e: Exception) {}
+            call.resolve(JSObject().put("fat", fat).put("lean", lean))
         }
     }
 }

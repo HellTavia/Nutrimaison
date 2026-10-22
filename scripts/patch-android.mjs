@@ -197,6 +197,8 @@ edit(path.join("app", "src", "main", "AndroidManifest.xml"), (s) => {
     "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED",
     "android.permission.health.READ_TOTAL_CALORIES_BURNED",
     "android.permission.health.READ_BASAL_METABOLIC_RATE",
+    "android.permission.health.READ_BODY_FAT",
+    "android.permission.health.READ_LEAN_BODY_MASS",
   ];
   let add = "";
   perms.forEach((p) => { if (!s.includes(`"${p}"`)) add += `    <uses-permission android:name="${p}" />\n`; });

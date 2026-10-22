@@ -5,7 +5,7 @@ import { Play, Check, RefreshCw, Sparkles, Pencil, Loader2, Clock } from "lucide
 import { C, MONO, SERIF, Card, Btn, Chip, BackHeader, inputStyle, uid, bmi } from "./shared.jsx";
 import { GROUPS, EQUIPMENT } from "./sportData.js";
 import { Label, Toggle, resolveExercise, hasEquip, estimateSessionSeconds } from "./Sport.jsx";
-import { geminiGenerate, parseJSONLoose } from "./gemini.js";
+import { geminiGenerate, parseJSONLoose, activeAiKey } from "./gemini.js";
 
 /* ================================================================== */
 /* SÉANCE SUR MESURE (hors-ligne)                                      */
@@ -246,7 +246,7 @@ const COACH_EXAMPLES = [
 ];
 
 export function AICoach({ s, idx, personalInfo, onBack, onStart, onSave, onEdit, onUpdateSettings }) {
-  const apiKey = (personalInfo.geminiApiKey || "").trim();
+  const apiKey = activeAiKey(personalInfo);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
@@ -338,9 +338,9 @@ ${list}` }], { onStatus: setStatus, temperature: 0.6 });
       <div>
         <BackHeader title="Coach IA" onBack={onBack} />
         <Card>
-          <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Clé Gemini nécessaire</p>
+          <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Clé d'IA nécessaire</p>
           <p style={{ margin: 0, fontSize: 13, color: C.inkSoft, lineHeight: 1.55 }}>
-            Le coach utilise ta clé Gemini gratuite (la même que pour la photo des repas). Ajoute-la dans Profil → Intelligence artificielle Gemini. En attendant, la <strong>Séance sur mesure</strong> fonctionne sans clé et hors-ligne.
+            Le coach utilise ta clé d'IA, Gemini (gratuite) ou Grok, la même que pour la photo des repas. Ajoute-la dans Moi → Intelligence artificielle. En attendant, la <strong>Séance sur mesure</strong> fonctionne sans clé et hors-ligne.
           </p>
         </Card>
       </div>

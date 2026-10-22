@@ -177,7 +177,7 @@ export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe, on
     setAdding(null);
   }
   if (!geminiKey) {
-    return <p style={{ fontSize: 11.5, color: C.inkSoft, margin: "0 0 14px" }}>Astuce : avec une clé Gemini (Profil), l'IA peut aussi inventer des plats avec ce que tu as et te dire quoi acheter.</p>;
+    return <p style={{ fontSize: 11.5, color: C.inkSoft, margin: "0 0 14px" }}>Astuce : avec une clé d'IA (Moi → Intelligence artificielle), l'IA peut aussi inventer des plats avec ce que tu as et te dire quoi acheter.</p>;
   }
   async function run() {
     abort.current?.abort();

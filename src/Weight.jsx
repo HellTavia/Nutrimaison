@@ -7,6 +7,7 @@ import {
   todayISO, addDays, daysBetween, frShort, frDate, round, dayKcal, bmrMifflin, bmi,
 } from "./shared.jsx";
 import { Label, Toggle } from "./Sport.jsx";
+import { MetabolismTab } from "./Metabolism.jsx";
 
 /* ================================================================== */
 /* CALCULS                                                             */
@@ -149,13 +150,15 @@ export function WeightView({ weights, onSaveWeights, measures, onSaveMeasures, p
   return (
     <div style={{ padding: "28px 20px 8px" }}>
       {onBack ? <BackHeader title="Corps & progrès" onBack={onBack} /> : <SectionTitle>Corps & progrès</SectionTitle>}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      <div className="scrollx" style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto" }}>
         <Chip active={tab === "poids"} onClick={() => setTab("poids")}>Poids</Chip>
         <Chip active={tab === "mesures"} onClick={() => setTab("mesures")}>Masse grasse</Chip>
         <Chip active={tab === "besoin"} onClick={() => setTab("besoin")}>Besoin réel</Chip>
+        <Chip active={tab === "metab"} onClick={() => setTab("metab")}>Métabolisme</Chip>
       </div>
       {tab === "poids" && <WeightTab weights={weights} onSave={onSaveWeights} stats={stats} personalInfo={personalInfo} onSavePersonalInfo={onSavePersonalInfo} />}
       {tab === "mesures" && <MeasuresTab measures={measures} onSave={onSaveMeasures} weights={weights} info={personalInfo} onSavePersonalInfo={onSavePersonalInfo} />}
+      {tab === "metab" && <MetabolismTab personalInfo={personalInfo} weights={weights} />}
       {tab === "besoin" && <AdaptiveTab stats={stats} goals={goals} personalInfo={personalInfo} onApplyKcal={onApplyKcal} />}
     </div>
   );
@@ -308,7 +311,7 @@ function MeasuresTab({ measures, onSave, weights, info, onSavePersonalInfo }) {
             <input type="number" inputMode="decimal" step="0.5" value={m[k] ?? ""} onChange={(e) => setM({ ...m, [k]: e.target.value })} style={{ ...inputStyle, width: 96, textAlign: "right" }} />
           </div>
         ))}
-        <p style={hint}>* nécessaires au calcul. Taille utilisée : {info.taille} cm, poids : {kg} kg (modifiables dans Profil / Poids).</p>
+        <p style={hint}>* nécessaires au calcul. Taille utilisée : {info.taille} cm, poids : {kg} kg (modifiables dans Moi → Objectifs / Poids).</p>
         <button onClick={() => setShowHow(!showHow)} style={{ ...iconBtn, padding: "8px 0 0", fontSize: 12.5, fontWeight: 600 }}><Info size={14} />&nbsp;Comment bien mesurer ?</button>
         {showHow && (
           <div style={{ fontSize: 12.5, lineHeight: 1.6, color: C.inkSoft, marginTop: 6 }}>
@@ -375,7 +378,7 @@ function BodyFatResult({ bf, kg, sexe, other, otherLabel }) {
         <MiniStat label="Masse maigre" value={`${round(lean)} kg`} />
       </div>
       <p style={{ ...hint, marginTop: 10 }}>
-        Métabolisme de base d'après ta masse maigre (Katch-McArdle) : <strong style={{ fontFamily: MONO }}>{Math.round(katch)} kcal</strong>. Il est utilisé automatiquement dans le calcul du Profil.
+        Métabolisme de base d'après ta masse maigre (Katch-McArdle) : <strong style={{ fontFamily: MONO }}>{Math.round(katch)} kcal</strong>. Il est utilisé automatiquement dans le calcul de tes besoins (Moi → Objectifs).
         {other != null && <> Méthode {otherLabel} : {round(other)} %.</>} Précision de ces formules : environ ± 3 à 4 points. Suis surtout l'évolution.
       </p>
     </div>

@@ -1,5 +1,62 @@
 # Historique des versions
 
+## 2.28.0 — interface épurée
+Toutes les fonctions sont conservées, rangées autrement.
+- **Accueil**
+  - un seul bloc de résumé : anneau des calories, macros et eau (−, +250 ml, choix de la quantité) ;
+  - les **repas** remontent juste dessous, une ligne compacte par repas (aperçu des aliments, kcal, +) ; toucher la ligne la déplie (aliments modifiables, « Comme la veille », menu copier / repas type / portions) ; le plat prévu au planning s'affiche avec « Noter » ;
+  - **Activité & corps** : une ligne « Dépense ≈ … kcal · pas · séances » qui ouvre la feuille **Activité du jour** (pas, sport, dépense par appli, corrections des séances, métabolisme), une ligne Poids avec mini-courbe, une ligne Bilan de la semaine ;
+  - les longues explications sont repliées derrière « ⓘ Comment c'est calculé ».
+- **Ajouter** : les 5 onglets sont remplacés par une barre de recherche et **6 actions** (Code-barres, Étiquette, Photo du plat, Texte IA, Recette, Repas type), avec Favoris / Récents / Repas types dessous ; le choix du repas devient un sélecteur compact. Le code-barres a son écran (scan, photo, saisie du code) avec un raccourci « Pas de code-barres ? Scanne l'étiquette ».
+- **Moi** (ex-Profil) : bandeau de l'objectif (« Modifier » ouvre Objectifs : objectifs, calcul des besoins, calories du sport), 4 tuiles **Corps & progrès** (Poids, Masse grasse, Besoin réel, Métabolisme), et **Réglages** en sous-pages avec leur état en un coup d'œil : Health Connect, Intelligence artificielle, Rappels, Sauvegarde, Apparence, Mises à jour, À propos.
+- **Health Connect** : synchro et autorisations en haut, puis « NutriMaison envoie », « NutriMaison lit » et « Avancé » (compléter les séances, diagnostic) ; explications derrière ⓘ.
+- Corps & progrès ouvert depuis Moi revient à Moi.
+
+## 2.27.0
+- **Graphique du métabolisme de base** (Corps & progrès → Métabolisme, ou « 📈 Métabolisme de base dans le temps » sous la dépense du jour) :
+  - une courbe par appli (Withings, Fitbit…) sur 7 j, 30 j, 90 j ou 1 an ; touche le graphique ou une ligne du tableau pour voir un jour précis (métabolisme, poids, masse grasse, masse maigre) ;
+  - comparaison début → fin de période (ex. « 23 sept. 2 713 → 21 oct. 2 689 kcal (−24) ») et évolution de la masse maigre ;
+  - tableau jour par jour ;
+  - tout l'historique présent dans Health Connect est récupéré (jusqu'à 400 jours), pas seulement depuis l'installation ;
+  - sans appli qui envoie son métabolisme, NutriMaison le calcule (masse maigre de la balance, sinon poids/taille/âge).
+- **Composition corporelle de la balance** lue dans Health Connect : masse grasse (%) et masse maigre (kg) de Withings (réglage « Poids et composition »). Après la mise à jour, touche « Autoriser l'accès » dans Profil → Health Connect pour accorder ces deux lectures.
+
+## 2.26.0
+- **Scanner une étiquette nutritionnelle** (Ajouter → Scanner → « Sans code-barres »), pour un produit sans code-barres, introuvable ou étranger :
+  - photo (ou galerie), **cadre à ajuster** sur le tableau : on le déplace, on tire ses coins, ou on en redessine un en glissant ; « Tout sélectionner » ;
+  - seule la zone choisie est envoyée à l'IA (plus précis, plus rapide) ; kJ convertis en kcal, sodium en sel, étiquette par portion ramenée à 100 g ;
+  - tableau **/100 g et /portion** (calories, protéines, lipides dont saturés, glucides dont sucres, fibres, sel), modifiable, avec la remarque de l'IA si quelque chose est douteux ;
+  - « Enregistrer et ajouter au repas » (quantité = la portion) ou « Enregistrer seulement ».
+  - La création d'un produit inconnu après un scan de code-barres reste disponible comme avant.
+- **Importer une recette** (Recettes → Mes recettes → « Importer (Insta, lien…) ») :
+  - **Texte** : colle la description d'un post ;
+  - **Lien** : post Instagram public (légende complète via la page publique du post), TikTok, blog ou site de cuisine (recette structurée de la page) ; le texte trouvé est modifiable avant conversion ;
+  - **Vidéo** : quand la description ne contient pas la recette, choisis la vidéo enregistrée sur le téléphone : Gemini lit les sous-titres incrustés, écoute la voix et repère les ingrédients montrés (jusqu'à 19 Mo, clé Gemini nécessaire) ;
+  - l'IA traduit et convertit tout en grammes (cup, tbsp, sachet, œufs…), garde la quantité d'origine, propose les étapes et la catégorie ;
+  - chaque ingrédient est **relié à la table Ciqual** quand le nom et les calories concordent, sinon il garde l'estimation de l'IA (signalée) ;
+  - écran **« Vérifier la recette »** : créateur, lien du post, ingrédients (quantité d'origine affichée, 🔍 pour relier à un autre aliment), étapes modifiables, catégorie. La source s'affiche ensuite dans la recette (« voir le post »).
+- **Grok (xAI) en option** à côté de Gemini : Profil → Intelligence artificielle → Gemini / Grok. Clé xAI, modèle automatique ou choisi, liste actualisable, bascule si un modèle est saturé. Toutes les fonctions IA utilisent le fournisseur choisi, sauf la lecture de vidéo (Gemini uniquement).
+- Dans l'appli Android, les appels à Grok et la lecture des pages web passent par le client HTTP natif (pas de blocage CORS).
+
+## 2.25.0
+- **Toutes les séances importées sont complétées et corrigeables**, marche comprise : Withings n'envoie pas non plus toutes les calories de ses marches. Pour chaque séance : estimation − ce que l'appli a envoyé pendant la séance = ce qui est ajouté (jamais négatif ; une appli qui envoie bien ses calories n'est donc pas gonflée).
+- **Dépense du jour → « * N séances · détail et correction ▾ »** : tableau des séances (heure, durée, estimé − reçu = ajouté). Touche une séance pour saisir les calories affichées par ta montre (pour ce type de séance ou pour cette séance seulement), ou l'ignorer si c'est un doublon.
+- **Les corrections suivent la séance quand Withings la réécrit** (modification, resynchro) : elles sont rangées par créneau horaire et plus par identifiant. Les corrections de la 2.24 restent valables.
+- Intensités par défaut : marche 3 MET, randonnée 4,5, course 8, vélo 2,9.
+- **`build-apk.sh`** : APK signé sous Linux sans Android Studio (SDK en ligne de commande installé automatiquement, signature apksigner, mot de passe demandé au clavier).
+
+## 2.24.1
+- **Doublons de séances mieux détectés** : deux séances du même sport venant de la même appli sont fusionnées dès qu'elles se recouvrent (1 min suffit) ou commencent à moins de 5 min d'écart (avant : il fallait 50 % de recouvrement).
+- **« C'est un doublon : ignorer cette séance »** dans la fenêtre de correction d'une séance : elle disparaît du sport du jour et de la dépense. Pour la rétablir : Profil → Health Connect → Diagnostic des calories → toucher la séance barrée.
+
+## 2.24.0
+- **Corriger les calories d'une séance** : touche la ligne « * Vélo 20 min ≈ 266 ✎ » sous l'appli, saisis ce que ta montre affiche pour la séance, puis choisis :
+  - **Ajuster toutes mes séances de vélo** (par défaut) : NutriMaison en déduit l'intensité (MET) et l'utilise pour toutes les séances de ce type, passées et futures ;
+  - **Cette séance seulement**.
+  - « Revenir à l'estimation automatique » annule la correction.
+- Vélo moins surestimé par défaut : 5 MET (balade / trajet) au lieu de 7, vélo d'appartement 5,5 au lieu de 6,8.
+- L'estimation des séances est recalculée à l'affichage : une correction ou l'option « Compléter les séances » s'applique tout de suite, sans resynchroniser.
+
 ## 2.23.1
 - **Séance comptée deux fois** : quand une appli (Withings) renvoie la même séance sous un nouvel enregistrement (séance modifiée ou resynchronisée), NutriMaison n'en garde qu'une (même appli, même type, créneaux qui se recouvrent à plus de 50 %). Corrige « Boxe · 2 fois » et la double estimation de calories.
 - Diagnostic des calories : liste des séances reçues avec leurs horaires ; les doublons ignorés sont barrés.

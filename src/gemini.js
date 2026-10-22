@@ -6,6 +6,20 @@
 /* arrêté le 1er juin 2026). On demande donc la liste des modèles    */
 /* disponibles pour la clé et on prend le meilleur « flash ».        */
 /* ---------------------------------------------------------------- */
+import { grokGenerate } from "./grok.js";
+
+/* ---------------------------------------------------------------- */
+/* Fournisseur d'IA : Gemini (par défaut, gratuit) ou Grok (xAI)     */
+/* ---------------------------------------------------------------- */
+export function getAiProvider() { try { return localStorage.getItem("aiProvider") === "grok" ? "grok" : "gemini"; } catch (e) { return "gemini"; } }
+export function setAiProvider(v) { try { if (v === "grok") localStorage.setItem("aiProvider", "grok"); else localStorage.removeItem("aiProvider"); } catch (e) {} }
+/** Clé du fournisseur choisi dans Profil (vide = pas d'IA). */
+export function activeAiKey(info) {
+  const k = getAiProvider() === "grok" ? info?.grokApiKey : info?.geminiApiKey;
+  return String(k || "").replace(/\s+/g, "");
+}
+export function aiProviderLabel() { return getAiProvider() === "grok" ? "Grok" : "Gemini"; }
+
 export function clearGeminiModelCache() { try { localStorage.removeItem("geminiModel"); } catch (e) {} }
 export function geminiErrorText(err) {
   const msg = (err && err.message) || "";
@@ -135,7 +149,10 @@ function markNoThink(model) { try { const s = noThinkSet(); s.add(model); localS
  *  - nouvel essai puis bascule de modèle si saturé ou trop lent ;
  *  - signal : permet d'annuler depuis l'interface.
  */
-export async function geminiGenerate(apiKey, parts, { onStatus, json = true, temperature = 0.3, timeoutMs = 45000, totalMs = 110000, signal } = {}) {
+export async function geminiGenerate(apiKey, parts, opts = {}) {
+  // opts.provider force un fournisseur (la lecture de vidéo n'existe que chez Gemini)
+  if ((opts.provider || getAiProvider()) === "grok") return grokGenerate(apiKey, parts, opts);
+  const { onStatus, onModel, json = true, temperature = 0.3, timeoutMs = 45000, totalMs = 110000, signal } = opts;
   const started = Date.now();
   const models = await geminiModelOrder(apiKey);
   const pref = getGeminiModelPref();
@@ -167,6 +184,7 @@ export async function geminiGenerate(apiKey, parts, { onStatus, json = true, tem
         throw new Error(e.message); // pas de réseau : inutile d'essayer d'autres modèles
       }
       if (!data.error) {
+        onModel && onModel(model);
         if (pref === "auto") rememberGoodModel(apiKey, model); // un secours ponctuel ne change pas l'ordre automatique
         const cand = data.candidates?.[0];
         const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join("");

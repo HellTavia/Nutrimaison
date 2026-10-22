@@ -48,7 +48,7 @@ export async function hcAvailability() {
 function wantedPermissions(s) {
   const read = [], write = [];
   if (s.read.steps) read.push("steps");
-  if (s.read.weight) read.push("weight");
+  if (s.read.weight) read.push("weight", "bodyFat", "leanMass"); // + composition de la balance (masse grasse, masse maigre)
   if (s.read.calories) read.push("activeCalories", "totalCalories", "basal");
   if (s.read.exercise) read.push("exercise");
   if (s.write.nutrition) write.push("nutrition");
@@ -208,11 +208,13 @@ async function pushWrites(s, ctx, log) {
 /* seulement les calories « de mouvement » mesurées pendant ce temps, */
 /* bien moins que ce que leur appli affiche. On estime la séance      */
 /* (MET × poids × durée) et on ajoute ce qui manque.                  */
-/* Marche, course, randonnée : déjà comptées par les pas, on n'y      */
-/* touche pas.                                                        */
+/* Marche et course comprises : Withings ne les envoie pas en entier */
+/* non plus. Une appli qui envoie bien ses calories n'est pas gonflée */
+/* (on n'ajoute que la différence avec ce qu'elle a envoyé).          */
 /* ---------------------------------------------------------------- */
 export const SESSION_MET = {
-  0: 5, 2: 5.5, 8: 7, 9: 6.8, 10: 8, 11: 7.8, 13: 4, 16: 5, 25: 5, 26: 6, 32: 4.8, 36: 8, 44: 7.8,
+  79: 3, 37: 4.5, 56: 8, 57: 8,
+  0: 5, 2: 5.5, 8: 2.9, 9: 5.5, 10: 8, 11: 7.8, 13: 4, 16: 5, 25: 5, 26: 6, 32: 4.8, 36: 8, 44: 7.8,
   48: 3, 51: 8, 53: 7, 54: 7, 61: 7, 64: 7, 66: 7.3, 68: 8, 69: 8, 70: 5, 71: 2.3, 73: 5.8, 74: 5.8,
   75: 4, 76: 7.3, 81: 5, 83: 2.5,
 };
@@ -222,23 +224,70 @@ function latestKg() {
   return (last && Number(w[last])) || Number(loadJSON("personalInfo", {}).poids) || 70;
 }
 async function addSessionFill(bySource, sessions, kg) {
+  // on mémorise les séances et ce que l'appli a envoyé pendant ; l'estimation est faite à l'affichage
+  // (elle dépend des corrections de l'utilisateur, modifiables à tout moment)
   for (const x of bySource) {
     const mine = sessions.filter((z) => z.origin === x.origin && SESSION_MET[z.type] && z.end > z.start);
     if (!mine.length || !(x.basal > 0)) continue;
-    const detail = [];
+    const list = [];
     for (const z of mine) {
-      const est = Math.round(netKcal(SESSION_MET[z.type], kg, (z.end - z.start) / 60000));
       let rec = 0;
       const r = await HealthBridge.debugCalories({ start: z.start, end: z.end });
       (r.records || []).filter((y) => y.kind === "active" && y.origin === x.origin && y.end > y.start).forEach((y) => {
         const ov = Math.min(y.end, z.end) - Math.max(y.start, z.start);
         if (ov > 0) rec += y.kcal * ov / (y.end - y.start);
       });
-      rec = Math.round(rec);
-      if (est - rec >= 15) detail.push({ label: exerciseLabel(z), min: Math.round((z.end - z.start) / 60000), est, rec, add: est - rec });
+      list.push({ id: z.id, origin: z.origin, start: z.start, end: z.end, type: z.type, label: exerciseLabel(z), min: Math.round((z.end - z.start) / 60000), rec: Math.round(rec), kg });
     }
-    if (detail.length) { x.fill = detail.reduce((a, q) => a + q.add, 0); x.fillDetail = detail; }
+    x.sessions = list;
   }
+}
+/** MET retenu pour un type de séance : réglage de l'utilisateur, sinon barème. */
+export function sessionMet(type, prefs) { return Number(prefs?.sessionMet?.[type]) || SESSION_MET[type]; }
+/**
+ * Correction (calories saisies ou séance ignorée) qui s'applique à une séance.
+ * Rangée par créneau horaire et non par identifiant : quand Withings réécrit une séance (modification,
+ * resynchro), elle change d'identifiant mais garde à peu près son créneau → la correction suit.
+ */
+export function findSessionFix(q, prefs) {
+  const fixes = prefs?.sessionFix || [];
+  if (q.start != null) {
+    const f = fixes.find((x) => x.origin === q.origin && x.type === q.type
+      && Math.min(x.end, q.end) - Math.max(x.start, q.start) >= 0.5 * Math.min(x.end - x.start, q.end - q.start));
+    if (f) return f;
+  }
+  // anciennes corrections (2.24.0) rangées par identifiant
+  if (prefs?.sessionIgnore?.[q.id]) return { ignore: true };
+  if (prefs?.sessionKcal?.[q.id] != null) return { kcal: prefs.sessionKcal[q.id] };
+  return null;
+}
+/** Enregistre (ou retire avec fix = null) la correction d'une séance. Renvoie les réglages modifiés. */
+export function setSessionFix(prefs, q, fix) {
+  const same = (x) => x.origin === q.origin && x.type === q.type
+    && Math.min(x.end, q.end) - Math.max(x.start, q.start) >= 0.5 * Math.min(x.end - x.start, q.end - q.start);
+  const limit = Date.now() - 60 * 86400000;
+  const list = (prefs.sessionFix || []).filter((x) => x.end > limit && !(q.start != null && same(x)));
+  if (fix && q.start != null) list.push({ origin: q.origin, type: q.type, start: q.start, end: q.end, ...fix });
+  const sk = { ...(prefs.sessionKcal || {}) }; delete sk[q.id];
+  const si = { ...(prefs.sessionIgnore || {}) }; delete si[q.id];
+  if (fix && q.start == null) { if (fix.ignore) si[q.id] = true; else sk[q.id] = fix.kcal; }
+  return { ...prefs, sessionFix: list, sessionKcal: sk, sessionIgnore: si };
+}
+export function isSessionIgnored(q, prefs) { return !!findSessionFix(q, prefs)?.ignore; }
+/** Calories estimées d'une séance : valeur saisie pour cette séance, sinon MET × poids × durée. */
+export function sessionEstimate(q, prefs) {
+  const fix = findSessionFix(q, prefs);
+  if (fix?.kcal != null) return { est: Math.round(fix.kcal), manual: "séance" };
+  const custom = prefs?.sessionMet?.[q.type] != null;
+  return { est: Math.round(netKcal(sessionMet(q.type, prefs), q.kg, q.min)), manual: custom ? "type" : null };
+}
+/** Complément des séances pour une source, d'après ses séances mémorisées et les corrections. */
+function withFill(x, prefs) {
+  if (!Array.isArray(x.sessions)) return x; // ancienne synchro : on garde ce qui était calculé
+  const detail = x.sessions.filter((q) => !isSessionIgnored(q, prefs))
+    .map((q) => { const e = sessionEstimate(q, prefs); return { ...q, ...e, add: Math.max(0, e.est - q.rec) }; });
+  const fill = detail.reduce((a, q) => a + q.add, 0);
+  return { ...x, fill: fill || undefined, fillDetail: detail.length ? detail : undefined };
 }
 
 /* ---------------------------------------------------------------- */
@@ -287,7 +336,7 @@ async function pullReads(s, log) {
         bySource = (r.sources || []).map((x) => ({ origin: x.origin, active: k(x.active), total: k(x.total), basal: k(x.basal), ...(x.lastActiveAt ? { lastAt: x.lastActiveAt } : {}), ...(x.activeRaw != null ? { activeRaw: Math.round(x.activeRaw) } : {}) }))
           .filter((x) => x.active || x.total || x.basal);
       } catch (e) { bySource = undefined; }
-      if (bySource && s.fillSessions !== false) {
+      if (bySource) {
         try { await addSessionFill(bySource, exercisesByDay[d] || [], latestKg()); } catch (e) {}
       }
     }
@@ -320,6 +369,35 @@ async function pullReads(s, log) {
     saveJSON("weights", weights);
     saveJSON("weightSources", sources);
     log.weightsImported = n;
+  }
+
+  // Historique du métabolisme de base (une valeur par jour et par appli) : sert au graphique « Métabolisme »
+  if (canRead.has("basal") && HealthBridge.readBasal) {
+    try {
+      const res = await HealthBridge.readBasal({ start: dayStart(addDays(today, -400)), end: Date.now() });
+      const hist = loadJSON("bmrHistory", {});
+      (res.records || []).sort((a, b) => a.time - b.time).forEach((x) => {
+        if (!(x.kcalDay > 500 && x.kcalDay < 6000)) return;
+        const d = isoOf(x.time);
+        hist[d] = { ...(hist[d] || {}), [x.origin]: Math.round(x.kcalDay) }; // la dernière mesure du jour gagne
+      });
+      saveJSON("bmrHistory", hist);
+    } catch (e) { /* ancienne version du pont natif */ }
+  }
+  // Composition corporelle de la balance (masse grasse %, masse maigre kg)
+  if ((canRead.has("bodyFat") || canRead.has("leanMass")) && HealthBridge.readBodyComp) {
+    try {
+      const res = await HealthBridge.readBodyComp({ start: dayStart(addDays(today, -400)), end: Date.now() });
+      const comp = loadJSON("bodyComp", {});
+      const put = (list, key, val) => (list || []).sort((a, b) => a.time - b.time).forEach((x) => {
+        const d = isoOf(x.time);
+        if (comp[d]?.[key] != null && comp[d][key + "Src"] === x.origin) return; // première mesure du jour
+        comp[d] = { ...(comp[d] || {}), [key]: val(x), [key + "Src"]: x.origin };
+      });
+      put(res.fat, "fat", (x) => Math.round(x.percent * 10) / 10);
+      put(res.lean, "lean", (x) => Math.round(x.kg * 10) / 10);
+      saveJSON("bodyComp", comp);
+    } catch (e) {}
   }
 }
 
@@ -372,9 +450,11 @@ export function sourceTotal(x) {
   if (x.basal > 0) return { kcal: x.basal, rebuilt: true };
   return null;
 }
-export function calorieSummary(hc, exclude) {
+export function calorieSummary(hc, exclude, prefs) {
   const ex = new Set(exclude || []);
-  const rows = (hc?.bySource || []).map((x) => {
+  const p = prefs || loadHC();
+  const rows = (hc?.bySource || []).map((x0) => {
+    const x = p.fillSessions === false ? { ...x0, fill: undefined, fillDetail: undefined } : withFill(x0, p);
     const t = sourceTotal(x);
     return { ...x, label: originLabel(x.origin), totalKcal: t?.kcal ?? null, rebuilt: !!t?.rebuilt, included: !ex.has(x.origin) && !!t };
   }).sort((a, b) => (b.totalKcal || 0) - (a.totalKcal || 0));
@@ -398,20 +478,22 @@ export function exerciseLabel(x) {
 /** Regroupe les séances de même type et de même appli : « Marche · 8 fois · 157 min ». */
 /**
  * Une même appli envoie parfois la même séance deux fois (séance modifiée ou resynchronisée = nouvel enregistrement).
- * Même appli + même type + créneaux qui se recouvrent à plus de 50 % (de la plus courte) → une seule séance, la plus longue.
+ * Même appli + même type + créneaux qui se recouvrent (ou départs à moins de 5 min) → une seule séance, la plus longue.
  */
 export function dedupeSessions(list) {
   const out = [];
   [...(list || [])].sort((a, b) => (b.end - b.start) - (a.end - a.start)).forEach((x) => {
+    // une appli ne fait pas deux séances du même sport en même temps : le moindre recouvrement (1 min) ou un départ
+    // à moins de 5 min d'écart = la même séance envoyée deux fois
     const dup = out.find((y) => y.origin === x.origin && y.type === x.type
-      && Math.min(x.end, y.end) - Math.max(x.start, y.start) >= 0.5 * Math.min(x.end - x.start, y.end - y.start));
+      && (Math.min(x.end, y.end) - Math.max(x.start, y.start) >= 60000 || Math.abs(x.start - y.start) <= 5 * 60000));
     if (!dup) out.push(x);
   });
   return out.sort((a, b) => a.start - b.start);
 }
-export function groupSessions(list) {
+export function groupSessions(list, prefs) {
   const g = {};
-  dedupeSessions(list).forEach((x) => {
+  dedupeSessions(list).filter((x) => !isSessionIgnored(x, prefs)).forEach((x) => {
     const label = exerciseLabel(x);
     const k = label + "|" + x.origin;
     if (!g[k]) g[k] = { key: k, label, origin: x.origin, count: 0, minutes: 0, first: x.start };
@@ -435,7 +517,8 @@ export async function debugCaloriesDay(iso) {
   ]);
   const rawSessions = (ex.records || []).sort((a, b) => a.start - b.start);
   const kept = new Set(dedupeSessions(rawSessions).map((x) => x.id));
-  const sessions = rawSessions.map((x) => ({ ...x, label: exerciseLabel(x), app: originLabel(x.origin), duplicate: !kept.has(x.id) }));
+  const prefs = loadHC();
+  const sessions = rawSessions.map((x) => ({ ...x, label: exerciseLabel(x), app: originLabel(x.origin), duplicate: !kept.has(x.id), ignored: isSessionIgnored(x, prefs) }));
   const by = {};
   (raw.records || []).forEach((r) => {
     const o = (by[r.origin] = by[r.origin] || { origin: r.origin, label: originLabel(r.origin), active: [], total: [] });

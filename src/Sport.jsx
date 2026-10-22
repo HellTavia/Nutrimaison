@@ -406,7 +406,7 @@ function SetupWizard({ s, personalInfo, idx, onDone, onCancel }) {
           <span style={{ fontSize: 12, color: C.inkSoft }}>pas</span>
         </div>
         <p style={hint}>
-          Utilisé dans le calcul de ton besoin (Profil → mode détaillé). Tes pas sont comptés une seule fois : ne les ajoute pas aussi en « activité libre ».
+          Utilisé dans le calcul de ton besoin (Moi → Objectifs, mode détaillé). Tes pas sont comptés une seule fois : ne les ajoute pas aussi en « activité libre ».
         </p>
       </Card>
 

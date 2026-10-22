@@ -5,7 +5,7 @@ import { Activity, RefreshCw, Settings, ShieldCheck } from "lucide-react";
 import { C, MONO } from "./shared.jsx";
 import { Toggle } from "./Sport.jsx";
 import {
-  loadHC, saveHC, hcAvailability, hcRequestPermissions, hcRefreshGranted, hcOpenSettings, isNativeAndroid, debugCaloriesDay,
+  loadHC, saveHC, hcAvailability, hcRequestPermissions, hcRefreshGranted, hcOpenSettings, isNativeAndroid, debugCaloriesDay, setSessionFix,
 } from "./healthconnect.js";
 
 const WRITE_ITEMS = [
@@ -18,7 +18,7 @@ const WRITE_ITEMS = [
 ];
 const READ_ITEMS = [
   ["steps", "Pas", "Remplissent automatiquement tes pas du jour (total dédoublonné par Health Connect)."],
-  ["weight", "Poids (balance Withings…)", "Importe ta première pesée de chaque jour dans le suivi du poids."],
+  ["weight", "Poids et composition (balance Withings…)", "Importe ta première pesée de chaque jour, et la masse grasse / masse maigre si ta balance les mesure (graphique Métabolisme)."],
   ["calories", "Calories dépensées mesurées", "Affichées sur l'accueil, à titre d'information."],
   ["exercise", "Séances des autres applis", "Affichées dans « Sport du jour »."],
 ];
@@ -27,7 +27,10 @@ const PERM_OF = {
   r: { steps: ["steps"], weight: ["weight"], calories: ["activeCalories", "totalCalories", "basal"], exercise: ["exercise"] },
 };
 
-export function HealthConnectCard({ onSync }) {
+const GROUP = { margin: "18px 0 6px", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: C.inkSoft };
+
+export function HealthConnectCard({ onSync, bare }) {
+  const [help, setHelp] = useState(false);
   const [hc, setHc] = useState(loadHC());
   const [status, setStatus] = useState(isNativeAndroid() ? "…" : "web");
   const [busy, setBusy] = useState(false);
@@ -65,10 +68,10 @@ export function HealthConnectCard({ onSync }) {
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      {!bare && <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <Activity size={16} color={C.herb} />
         <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Health Connect</p>
-      </div>
+      </div>}
 
       {status === "web" ? (
         <p style={{ ...sub, marginTop: 0 }}>Disponible uniquement dans l'application Android (APK).</p>
@@ -79,25 +82,10 @@ export function HealthConnectCard({ onSync }) {
       ) : (
         <>
           <Toggle checked={hc.enabled} onChange={(v) => update({ enabled: v })} label="Synchroniser avec Health Connect"
-            sub="Échange avec Fitbit, Withings et les autres applis reliées, sans doublon : chaque donnée n'a qu'une seule source." />
+            sub={help || !hc.enabled ? "Échange avec Fitbit, Withings et les autres applis reliées, sans doublon : chaque donnée n'a qu'une seule source." : undefined} />
 
           {hc.enabled && (
             <>
-              <p style={{ margin: "14px 0 4px", fontSize: 12, fontWeight: 600, color: C.inkSoft }}>NutriMaison envoie</p>
-              {WRITE_ITEMS.map(([k, l, d]) => (
-                <div key={k} style={{ marginBottom: 4 }}>
-                  <Toggle checked={!!hc.write[k]} onChange={(v) => update({ write: { ...hc.write, [k]: v } })}
-                    label={<>{l}{hc.write[k] && !granted("w", PERM_OF.w[k]) && <span style={{ color: C.berry, fontSize: 11 }}> · non autorisé</span>}</>} sub={d} />
-                </div>
-              ))}
-              <p style={{ margin: "14px 0 4px", fontSize: 12, fontWeight: 600, color: C.inkSoft }}>NutriMaison lit</p>
-              {READ_ITEMS.map(([k, l, d]) => (
-                <div key={k} style={{ marginBottom: 4 }}>
-                  <Toggle checked={!!hc.read[k]} onChange={(v) => update({ read: { ...hc.read, [k]: v } })}
-                    label={<>{l}{hc.read[k] && !granted("r", PERM_OF.r[k]) && <span style={{ color: C.berry, fontSize: 11 }}> · non autorisé</span>}</>} sub={d} />
-                </div>
-              ))}
-
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button onClick={authorize} disabled={busy} style={{ ...btn, background: anyMissing ? C.herb : C.sage, color: anyMissing ? C.onAccent : C.herb }}>
                   <ShieldCheck size={14} /> {anyMissing ? "Autoriser l'accès" : "Autorisations"}
@@ -112,19 +100,39 @@ export function HealthConnectCard({ onSync }) {
                   {hc.lastError && <span style={{ color: C.berry }}> — {hc.lastError}</span>}
                 </p>
               )}
-              {hc.read.calories && (
-                <div style={{ marginTop: 4 }}>
-                  <Toggle checked={hc.fillSessions !== false} onChange={(v) => update({ fillSessions: v })}
-                    label="Compléter les séances sans calories"
-                    sub="Withings envoie tes séances (boxe, vélo…) mais presque pas leurs calories. NutriMaison estime la séance d'après son type, sa durée et ton poids et ajoute ce qui manque à la dépense de l'appli. Marche et course ne sont pas touchées (déjà comptées par les pas)." />
+              <button onClick={() => setHelp(!help)} style={{ marginTop: 8, background: "none", border: "none", padding: 0, color: C.inkSoft, fontSize: 12, fontWeight: 600 }}>
+                ⓘ {help ? "Masquer les explications" : "Afficher les explications"}
+              </button>
+
+              <p style={GROUP}>→ NutriMaison envoie</p>
+              {WRITE_ITEMS.map(([k, l, d]) => (
+                <div key={k} style={{ marginBottom: 4 }}>
+                  <Toggle checked={!!hc.write[k]} onChange={(v) => update({ write: { ...hc.write, [k]: v } })}
+                    label={<>{l}{hc.write[k] && !granted("w", PERM_OF.w[k]) && <span style={{ color: C.berry, fontSize: 11 }}> · non autorisé</span>}</>} sub={help ? d : undefined} />
+                </div>
+              ))}
+              <p style={GROUP}>← NutriMaison lit</p>
+              {READ_ITEMS.map(([k, l, d]) => (
+                <div key={k} style={{ marginBottom: 4 }}>
+                  <Toggle checked={!!hc.read[k]} onChange={(v) => update({ read: { ...hc.read, [k]: v } })}
+                    label={<>{l}{hc.read[k] && !granted("r", PERM_OF.r[k]) && <span style={{ color: C.berry, fontSize: 11 }}> · non autorisé</span>}</>} sub={help ? d : undefined} />
+                </div>
+              ))}
+
+              {hc.read.calories && <>
+                <p style={GROUP}>Avancé</p>
+                <Toggle checked={hc.fillSessions !== false} onChange={(v) => update({ fillSessions: v })}
+                  label="Compléter les séances sans calories"
+                  sub={help ? "Withings envoie tes séances (marche, boxe, vélo…) mais pas toutes leurs calories. NutriMaison estime chaque séance d'après son type, sa durée et ton poids, et ajoute la différence avec ce que l'appli a envoyé. Corrigeable séance par séance dans « Activité du jour »." : undefined} />
+                <CaloriesDebug />
+              </>}
+              {help && (
+                <div style={{ background: C.sage, borderRadius: 10, padding: 10, marginTop: 10 }}>
+                  <p style={{ margin: 0, fontSize: 11.5, color: C.herb, lineHeight: 1.55 }}>
+                    <strong>Pour zéro doublon :</strong> note tes repas uniquement dans NutriMaison ; pèse-toi sur la balance (ne retape pas la pesée) ; dans Health Connect → Données et accès, mets ta montre en tête des sources pour les pas et l'activité. La synchro se fait à l'ouverture de l'app et quelques secondes après chaque modification.
+                  </p>
                 </div>
               )}
-              {hc.read.calories && <CaloriesDebug />}
-              <div style={{ background: C.sage, borderRadius: 10, padding: 10, marginTop: 10 }}>
-                <p style={{ margin: 0, fontSize: 11.5, color: C.herb, lineHeight: 1.55 }}>
-                  <strong>Pour zéro doublon :</strong> note tes repas uniquement dans NutriMaison ; pèse-toi sur la balance (ne retape pas la pesée) ; dans Health Connect → Données et accès, mets ta montre en tête des sources pour les pas et l'activité. La synchro se fait à l'ouverture de l'app et quelques secondes après chaque modification.
-                </p>
-              </div>
             </>
           )}
         </>
@@ -197,8 +205,9 @@ function CaloriesDebug() {
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Séances reçues</p>
               <div style={{ fontFamily: MONO, fontSize: 11.5, lineHeight: 1.6 }}>
                 {res.sessions.map((x) => (
-                  <div key={x.id} style={{ color: x.duplicate ? C.berry : C.ink, textDecoration: x.duplicate ? "line-through" : "none" }}>
-                    {hm(x.start)}–{hm(x.end)} · {x.label} · {x.app}{x.duplicate ? " · doublon ignoré" : ""}
+                  <div key={x.id} onClick={x.ignored ? () => { saveHC(setSessionFix(loadHC(), x, null)); run(back); } : undefined}
+                    style={{ color: x.duplicate || x.ignored ? C.berry : C.ink, textDecoration: x.duplicate || x.ignored ? "line-through" : "none" }}>
+                    {hm(x.start)}–{hm(x.end)} · {x.label} · {x.app}{x.duplicate ? " · doublon ignoré" : x.ignored ? " · ignorée par toi (toucher pour rétablir)" : ""}
                   </div>
                 ))}
               </div>

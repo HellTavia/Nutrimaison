@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.23.1-C1922B" alt="Version 2.23.1">
+  <img src="https://img.shields.io/badge/version-2.19.1-C1922B" alt="Version 2.19.1">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
@@ -48,11 +48,14 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 - **Journal par repas** (petit-déjeuner, déjeuner, dîner, collations) : un bloc par repas avec ses totaux, repliable.
 - **Planning de la semaine** (Recettes → Semaine) : recettes et repas types placés sur les jours, total de kcal prévu par jour, « Noter » le jour venu (le plat prévu apparaît aussi dans le repas sur l'accueil), liste de courses de la semaine sans ce qu'il y a déjà dans le frigo, copie de la semaine précédente.
 - **Dépense du jour par appli** : calories de chaque appli présente dans Health Connect (Withings, Fit, Fitbit…), moyenne des sources choisies (touche une appli pour l'inclure ou l'exclure ; Fitbit exclu par défaut), et comparaison avec le besoin réel calculé d'après le poids.
-- **Mode sombre** : Profil → Apparence (comme le téléphone, clair ou sombre).
+- **Métabolisme de base dans le temps** (Corps & progrès → Métabolisme) : courbe par appli (Withings, Fitbit…) sur 7 j à 1 an, valeur d'un jour précis, évolution de la masse maigre et de la masse grasse lues sur la balance via Health Connect.
+- **Mode sombre** : Moi → Apparence (comme le téléphone, clair ou sombre).
 - **Calendrier** : touche la date en haut de l'accueil pour aller à n'importe quel jour ; pastille de couleur selon l'objectif calorique, ⚖ les jours de pesée.
 - **Base Ciqual intégrée** : 3 341 aliments génériques officiels (Anses), disponibles hors ligne, recherche sans accents et mot à mot.
 - **Produits de marque** via Open Food Facts (recherche en ligne) et **scanner de codes-barres** (détecteur natif Android, ZXing en secours, lampe, photo, saisie manuelle des chiffres). Produit inconnu : ajout en un formulaire (étiquette lue par l'IA en option), retrouvé au scan suivant.
-- **Photo d'un repas** analysée par IA (Gemini, optionnel) ou détection locale (TensorFlow.js).
+- **Photo d'un repas** analysée par IA (Gemini ou Grok, optionnel) ou détection locale (TensorFlow.js).
+- **Scanner une étiquette** (Ajouter → Scanner → « Sans code-barres ») : photo du tableau nutritionnel, cadre à ajuster sur le tableau, lecture par l'IA (même en langue étrangère, kJ et sodium convertis), valeurs pour 100 g et par portion modifiables, produit enregistré dans tes produits et ajouté au repas.
+- **Importer une recette** (Recettes → Mes recettes → Importer) : description d'un post Instagram collée, **lien** (post Instagram public, TikTok, blog : la recette structurée de la page ou la légende du post est lue) ou **vidéo** (Gemini lit les sous-titres incrustés et écoute la voix). L'IA convertit tout en grammes, relie les ingrédients à la table Ciqual quand c'est sûr, et ouvre « Vérifier la recette » (créateur, lien, ingrédients, étapes) avant l'enregistrement.
 - **Texte IA** : « 2 tortillas, 150 g de poulet, du cheddar » → aliments, quantités et valeurs estimés, modifiables avant ajout. Mode recette avec portions.
 - **Favoris, récents, repas types** et **« Comme la veille »** pour noter en quelques secondes ; copie d'un repas entier ou de quelques aliments depuis/vers un autre jour.
 - **Valeurs modifiables à la volée** quand ton produit diffère de celui de la base (option : le mémoriser).
@@ -164,13 +167,13 @@ La façon la plus simple, sans rien installer sur un ordinateur.
 1. Sur le téléphone, ouvre la page **[Releases](../../releases/latest)** et télécharge le fichier `nutrimaison-vX.Y.Z.apk` de la dernière version.
 2. Ouvre le fichier téléchargé. Android demande d'autoriser l'installation depuis ton navigateur ou ton gestionnaire de fichiers : accepte pour cette source.
 3. **Play Protect** affiche un avertissement, car l'app ne vient pas du Play Store : touche **Plus de détails → Installer quand même**. C'est normal pour toute appli installée hors Play Store.
-4. Ouvre NutriMaison, puis va dans **Profil** pour renseigner ton profil (et, si tu veux, ta clé Gemini gratuite pour les fonctions IA).
+4. Ouvre NutriMaison, puis va dans **Moi** pour renseigner ton profil (et, si tu veux, ta clé Gemini gratuite pour les fonctions IA).
 
 **Configuration requise** : Android 8.0 ou plus. Health Connect nécessite Android 9 ou plus (intégré d'office à partir d'Android 14).
 
-**Mettre à jour** : télécharge la nouvelle version et installe-la par-dessus l'ancienne, tes données sont conservées. Par précaution, fais d'abord **Profil → Sauvegarde → Exporter**.
+**Mettre à jour** : télécharge la nouvelle version et installe-la par-dessus l'ancienne, tes données sont conservées. Par précaution, fais d'abord **Moi → Sauvegarde → Exporter**.
 
-> ⚠️ Une mise à jour ne s'installe par-dessus que si elle est signée avec la **même clé**. Si tu passes de l'APK des Releases à une version que tu as compilée toi-même (ou l'inverse), Android refusera : exporte tes données, désinstalle, installe la nouvelle version, puis restaure (**Profil → Sauvegarde → Restaurer**).
+> ⚠️ Une mise à jour ne s'installe par-dessus que si elle est signée avec la **même clé**. Si tu passes de l'APK des Releases à une version que tu as compilée toi-même (ou l'inverse), Android refusera : exporte tes données, désinstalle, installe la nouvelle version, puis restaure (**Moi → Sauvegarde → Restaurer**).
 
 ## Compiler depuis les sources
 
@@ -229,7 +232,7 @@ node scripts/patch-android.mjs
 npx cap sync
 ```
 
-Recompiler **sur le même PC** (même clé de signature debug) et installer par-dessus l'ancienne version. Par sécurité : **Profil → Sauvegarde → Sauvegarder maintenant** (ou Exporter) avant.
+Recompiler **sur le même PC** (même clé de signature debug) et installer par-dessus l'ancienne version. Par sécurité : **Moi → Sauvegarde → Sauvegarder maintenant** (ou Exporter) avant.
 
 Pour installer sans l'avertissement Play Protect, passer par ADB :
 
@@ -241,11 +244,11 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 | Où | Quoi |
 |---|---|
-| **Profil → Calculer mes besoins** | Sexe, âge, taille, poids, mode détaillé (pas + sport) ou simple, objectif |
-| **Profil → Intelligence artificielle Gemini** | Clé Gemini gratuite ([aistudio.google.com](https://aistudio.google.com)), bouton « Tester la clé ». Modèle : « Automatique (recommandé) » ou un modèle précis, liste mise à jour par « Actualiser la liste des modèles ». Bascule sur un autre modèle s'il est saturé ou retiré. |
-| **Profil → Rappels** | Heure du rappel du soir et de la pesée |
-| **Profil → Health Connect** | Activer, choisir ce qui est envoyé et lu, « Autoriser l'accès » |
-| **Profil → Calories du sport** | Remanger les calories du sport : non (conseillé), la moitié, la totalité |
+| **Moi → Calculer mes besoins** | Sexe, âge, taille, poids, mode détaillé (pas + sport) ou simple, objectif |
+| **Moi → Intelligence artificielle** | Fournisseur au choix : **Gemini** (clé gratuite sur [aistudio.google.com](https://aistudio.google.com)) ou **Grok** (clé sur [console.x.ai](https://console.x.ai), payant à l'usage). La lecture de vidéo n'existe que chez Gemini. Bouton « Tester la clé ». Modèle : « Automatique (recommandé) » ou un modèle précis, liste mise à jour par « Actualiser la liste des modèles ». Bascule sur un autre modèle s'il est saturé ou retiré. |
+| **Moi → Rappels** | Heure du rappel du soir et de la pesée |
+| **Moi → Health Connect** | Activer, choisir ce qui est envoyé et lu, « Autoriser l'accès » |
+| **Moi → Calories du sport** | Remanger les calories du sport : non (conseillé), la moitié, la totalité |
 | **Sport → Personnaliser** | Matériel, niveau par mouvement, séances par semaine, mode sans sauts, pas habituels |
 | **Corps → Masse grasse** | Mensurations, méthode Navy ou Armée |
 
@@ -308,30 +311,29 @@ nutrimaison/
 | `customFoods`, `customRecipes`, `favorites`, `mealTemplates` | Aliments, recettes, favoris et repas types perso |
 | `pantry`, `fridgeExtras`, `shoppingList` | Contenu du frigo et liste de courses |
 | `mealPlan`, `theme` | Planning de la semaine, apparence (clair / sombre / auto) |
-| `healthConnect`, `reminders`, `geminiModel`, `geminiModelPref`, `geminiModelList` | Réglages et état des intégrations |
+| `healthConnect`, `reminders`, `aiProvider`, `geminiModel`, `geminiModelPref`, `geminiModelList`, `grokModelPref`, `grokModelList`, `bmrHistory`, `bodyComp` | Réglages et état des intégrations |
 | `autoBackup`, `updateCheck` | Copie automatique et vérification des versions (non inclus dans les sauvegardes) |
 
 ### Copie de sécurité automatique
 
-Au démarrage, si la dernière copie date de plus de 7 jours (ou 1 jour, au choix dans **Profil → Sauvegarde**), l'app écrit une sauvegarde complète dans **Documents/NutriMaison/** du téléphone et garde les 4 plus récentes. Ce dossier n'appartient pas à l'app : il reste après « Effacer les données » ou une désinstallation. Pour restaurer : **Profil → Sauvegarde → Restaurer → Choisir un fichier**.
+Au démarrage, si la dernière copie date de plus de 7 jours (ou 1 jour, au choix dans **Moi → Sauvegarde**), l'app écrit une sauvegarde complète dans **Documents/NutriMaison/** du téléphone et garde les 4 plus récentes. Ce dossier n'appartient pas à l'app : il reste après « Effacer les données » ou une désinstallation. Pour restaurer : **Moi → Sauvegarde → Restaurer → Choisir un fichier**.
 
 ## Publier une version (APK)
 
 Pour le mainteneur du dépôt :
 
 1. Mettre à jour `version` dans `package.json` et le `CHANGELOG.md`. Le script `patch-android.mjs` reporte cette version dans l'APK (`versionName`, et `versionCode` = 2.8.0 → 20800, qui doit toujours augmenter).
-2. Compiler :
+2. **APK signé, sous Linux, sans Android Studio** :
    ```bash
-   npm run build
-   node scripts/patch-android.mjs
-   npx cap sync
-   cd android
-   gradlew.bat assembleDebug        # ./gradlew assembleDebug sous macOS / Linux
+   ./build-apk.sh ~/cles/nutrimaison.jks          # alias détecté tout seul ; sinon en 2e argument
    ```
-3. Renommer `android/app/build/outputs/apk/debug/app-debug.apk` en `nutrimaison-vX.Y.Z.apk`.
+   Le script vérifie Node et Java (JDK 17+), installe le SDK Android en ligne de commande dans `~/Android/Sdk` la première fois, compile l'APK release, l'aligne et le signe avec `apksigner`. Le mot de passe est demandé au clavier (jamais écrit sur le disque). Résultat : `release/nutrimaison-vX.Y.Z.apk` + sa somme SHA-256, et l'empreinte du certificat affichée.
+   - **La clé ne va jamais dans le dépôt** (`*.jks` et `*.keystore` sont ignorés) : garde-la hors du projet, avec une copie de secours. Sans elle, plus aucune mise à jour ne pourra s'installer par-dessus.
+   - Sous Windows / avec Android Studio : *Build → Generate Signed App Bundle or APK → APK*, ou pour un simple test `gradlew.bat assembleDebug` (APK debug dans `android/app/build/outputs/apk/debug/`).
+3. Vérifier que l'APK s'installe sur un téléphone.
 4. Créer une **Release** avec le tag `vX.Y.Z`, y joindre l'APK et coller la partie du CHANGELOG correspondante.
 
-Les apps installées interrogent `https://api.github.com/repos/HellTavia/Nutrimaison/releases/latest` (une fois par jour au plus) : dès que la Release est **publiée** (pas en brouillon ni en pré-version), elles affichent « NutriMaison X.Y.Z est disponible » avec un bouton qui télécharge directement le premier fichier `.apk` joint. Le texte de la Release est montré dans **Profil → Mises à jour**. Pour un fork, changer `REPO` dans `src/updates.js`.
+Les apps installées interrogent `https://api.github.com/repos/HellTavia/Nutrimaison/releases/latest` (une fois par jour au plus) : dès que la Release est **publiée** (pas en brouillon ni en pré-version), elles affichent « NutriMaison X.Y.Z est disponible » avec un bouton qui télécharge directement le premier fichier `.apk` joint. Le texte de la Release est montré dans **Moi → Mises à jour**. Pour un fork, changer `REPO` dans `src/updates.js`.
 
 **Toujours compiler avec la même clé de signature.** Sinon les utilisateurs ne pourront pas mettre à jour sans désinstaller. La clé debug est dans `~/.android/debug.keystore` (Windows : `C:\Users\<toi>\.android\debug.keystore`) : sauvegarde-la. Elle n'est **jamais** à mettre dans le dépôt.
 
@@ -367,7 +369,7 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 | *Gradle 8.x is incompatible with JVM 25* | Relancer `node scripts/patch-android.mjs` (il fixe le JDK d'Android Studio), ou choisir **jbr-21 / JDK 17** : Settings → Build Tools → Gradle → Gradle JDK. Autre emplacement du JDK : variable d'environnement `NUTRIMAISON_JDK`. |
 | *connect-client requires compileSdk 36 / AGP 8.9.1* | Relancer `node scripts/patch-android.mjs`, installer le SDK 36. |
 | Avertissement Play Protect à l'installation | Normal hors Play Store : « Installer quand même », ou installer via ADB. |
-| Clé Gemini « incorrecte » | Profil → Tester la clé : le message indique la vraie cause (clé, quota, saturation). |
+| Clé Gemini « incorrecte » | Moi → Tester la clé : le message indique la vraie cause (clé, quota, saturation). |
 | « Modèle saturé » ou « délai dépassé » | Temporaire côté Google : l'app réessaie et change de modèle (40 s max par modèle). Réessayer plus tard. |
 | Scanner qui ne lit rien | Rapprocher le code (10-15 cm), lampe, ou bouton « Prendre le code-barres en photo ». |
 | *Le dossier android/ a été créé pour « … »* | L'identifiant de l'app a changé : supprimer le dossier `android` et relancer `setup`. |
@@ -377,7 +379,7 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 ## Confidentialité
 
 - Pas de compte, pas de serveur, pas de statistiques d'usage.
-- Vérification des versions : une lecture de la page publique des Releases GitHub, une fois par jour, sans aucune donnée envoyée (désactivable dans **Profil → Mises à jour**).
+- Vérification des versions : une lecture de la page publique des Releases GitHub, une fois par jour, sans aucune donnée envoyée (désactivable dans **Moi → Mises à jour**).
 - La clé Gemini reste sur le téléphone. Avec une clé, les photos et textes analysés sont envoyés à Google pour l'analyse, et rien d'autre.
 - Health Connect : les données restent sur l'appareil, et l'accès se retire à tout moment dans les paramètres Android.
 

@@ -2,11 +2,13 @@
 // Copyright (C) 2026 Les auteurs de NutriMaison
 /* Profil : objectifs, rappels, Health Connect, sauvegarde, mises à jour */
 import React, { useState, useEffect } from "react";
-import { Calculator, Download, Eye, EyeOff, Flame, RefreshCw, Scale, Sparkles, Upload } from "lucide-react";
+import { Bell, Calculator, ChevronLeft, ChevronRight, CloudUpload, Download, Eye, EyeOff, Flame, Gauge, HeartPulse, Info, LineChart, Moon, RefreshCw, Ruler, Scale, Sparkles, Upload } from "lucide-react";
 import { autoBackupAvailable, buildBackup, loadAutoBackup, restoreBackup, saveAutoBackup, writeBackupFile } from "../backup.js";
 import { REPO_URL, checkForUpdate, loadUpdateState, openExternal, saveUpdateState } from "../updates.js";
-import { clearGeminiModelCache, geminiModelOrder, getCachedGeminiModelList, getGeminiModelPref, refreshGeminiModelList, setGeminiModelPref } from "../gemini.js";
-import { applyTheme, loadThemePref, C, NumInput, SectionTitle, Tag, bmrMifflin, inputStyle, round, stepsKcal } from "../shared.jsx";
+import { clearGeminiModelCache, geminiModelOrder, getCachedGeminiModelList, getGeminiModelPref, refreshGeminiModelList, setGeminiModelPref, getAiProvider, setAiProvider } from "../gemini.js";
+import { getCachedGrokModelList, getGrokModelPref, refreshGrokModelList, setGrokModelPref, grokModelOrder } from "../grok.js";
+import { applyTheme, loadThemePref, C, MONO, NumInput, SectionTitle, Tag, bmrMifflin, inputStyle, loadJSON, round, stepsKcal } from "../shared.jsx";
+import { loadHC } from "../healthconnect.js";
 import { Toggle, plannedWeeklySportKcal } from "../Sport.jsx";
 import { HealthConnectCard } from "../HealthConnectCard.jsx";
 import { ensureNotifPermission, loadReminders, remindersAvailable, saveReminders, syncReminders, testReminder } from "../reminders.js";
@@ -54,7 +56,8 @@ export function computeGoalsFromProfile(info, extras = {}) {
 }
 
 export let runHcSyncRef = { current: null };
-export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, sportSettings, onSaveSportSettings, bodyFat, weightStats, onOpenBody }) {
+export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, sportSettings, onSaveSportSettings, bodyFat, weightStats, onOpenBody, initialPage }) {
+  const [page, setPage] = useState(initialPage || null); // null = page « Moi », sinon une sous-page de réglages
   const [local, setLocal] = useState(goals);
   const [saved, setSaved] = useState(false);
   const [info, setInfo] = useState(personalInfo);
@@ -65,20 +68,29 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
   useEffect(() => setInfo(personalInfo), [personalInfo]);
 
   const [keyTest, setKeyTest] = useState(null);
+  const [provider, setProvider] = useState(getAiProvider);
+  const keyField = provider === "grok" ? "grokApiKey" : "geminiApiKey";
+  const curKey = (info[keyField] || "").replace(/\s+/g, "");
+  function chooseProvider(v) {
+    setAiProvider(v); setProvider(v); setKeyTest(null);
+    const next = { ...info, aiProvider: v };
+    setInfo(next); onSavePersonalInfo(next); // l'appli se met à jour avec la clé du fournisseur choisi
+  }
   function saveGeminiKey() {
-    const cleaned = { ...info, geminiApiKey: (info.geminiApiKey || "").replace(/\s+/g, "") };
+    const cleaned = { ...info, [keyField]: curKey, aiProvider: provider };
     setInfo(cleaned);
     onSavePersonalInfo(cleaned);
-    clearGeminiModelCache();
+    if (provider === "gemini") clearGeminiModelCache();
     setKeySaved(true); setTimeout(() => setKeySaved(false), 1800);
   }
   async function testGeminiKey() {
-    const key = (info.geminiApiKey || "").replace(/\s+/g, "");
+    const key = curKey;
     if (!key) { setKeyTest({ ok: false, text: "Colle d'abord ta clé." }); return; }
     setKeyTest({ loading: true });
     try {
-      clearGeminiModelCache();
-      const model = (await geminiModelOrder(key))[0];
+      let model;
+      if (provider === "grok") { await refreshGrokModelList(key); model = (await grokModelOrder(key, false))[0]; }
+      else { clearGeminiModelCache(); model = (await geminiModelOrder(key))[0]; }
       setKeyTest({ ok: true, text: "Clé valide ✓ — modèle utilisé : " + model });
     } catch (e) {
       setKeyTest({ ok: false, text: "Échec : " + e.message });
@@ -129,10 +141,33 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     ["prise", "Prise de masse"],
   ];
 
-  return (
-    <div style={{ padding: "28px 20px 8px" }}>
-      <SectionTitle sub="Personnalise tes objectifs quotidiens.">Profil</SectionTitle>
-
+  const pageTitle = { objectifs: "Objectifs", hc: "Health Connect", ia: "Intelligence artificielle", rappels: "Rappels", sauvegarde: "Sauvegarde", apparence: "Apparence", maj: "Mises à jour", apropos: "À propos" };
+  if (page) {
+    return (
+      <div style={{ padding: "24px 20px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <button onClick={() => { setPage(null); window.scrollTo(0, 0); }} aria-label="Retour" style={{ background: "none", border: "none", color: C.herb, padding: 6, display: "flex" }}><ChevronLeft size={20} /></button>
+          <h2 style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 21 }}>{pageTitle[page]}</h2>
+        </div>
+        {page === "objectifs" && <>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+        <p style={{ margin: "0 0 12px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Mes objectifs</p>
+        {field("kcal", "Objectif calories", "kcal")}
+        {field("prot", "Objectif protéines", "g")}
+        {field("carbs", "Objectif glucides", "g")}
+        {field("fat", "Objectif lipides", "g")}
+        {field("water", "Objectif hydratation", "ml")}
+        <div style={{ margin: "-4px 0 14px" }}>
+          <Toggle checked={local.foodWater !== false} onChange={(v) => setLocal({ ...local, foodWater: v })}
+            label="Compter l'eau des aliments"
+            sub="L'eau contenue dans ce que tu manges (fruits, légumes, soupes, laitages…) est estimée et ajoutée à ce que tu bois. Seule l'eau bue est envoyée à Health Connect." />
+        </div>
+        <button onClick={() => { onSave(local); setSaved(true); setTimeout(() => setSaved(false), 1800); }} style={{
+          width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14, marginTop: 6,
+        }}>
+          {saved ? "Objectifs enregistrés ✓" : "Enregistrer"}
+        </button>
+      </div>
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <Calculator size={16} color={C.herb} />
@@ -243,21 +278,6 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <Scale size={16} color={C.herb} />
-          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Corps & progrès</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => onOpenBody("poids")} style={profileLinkBtn}>Poids</button>
-          <button onClick={() => onOpenBody("mesures")} style={profileLinkBtn}>Masse grasse</button>
-          <button onClick={() => onOpenBody("besoin")} style={profileLinkBtn}>Besoin réel</button>
-        </div>
-        {weightStats?.adaptive?.ok && (
-          <p style={{ fontSize: 12, color: C.inkSoft, margin: "10px 0 0" }}>D'après tes données, ton besoin réel est d'environ <strong>{weightStats.adaptive.tdee} kcal</strong>.</p>
-        )}
-      </div>
-
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Flame size={16} color={C.herb} />
           <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Calories du sport</p>
         </div>
@@ -275,32 +295,35 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
         </div>
       </div>
 
-      <ThemeCard />
-
-      <RemindersCard />
-
-      <HealthConnectCard onSync={() => runHcSyncRef.current && runHcSyncRef.current("full")} />
-
-      <BackupCard />
-
-      <UpdateCard />
-
+        </>}
+        {page === "hc" && <HealthConnectCard bare onSync={() => runHcSyncRef.current && runHcSyncRef.current("full")} />}
+        {page === "ia" && <>
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Sparkles size={16} color={C.herb} />
-          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Intelligence artificielle Gemini (optionnel)</p>
+          <p style={{ margin: 0, fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Intelligence artificielle (optionnel)</p>
         </div>
-        <p style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 12px" }}>
-          Une clé Gemini gratuite active les fonctions IA : photo d'un repas, lecture d'étiquette, idées du
-          frigo, Texte IA, coach sport (sans clé, la photo utilise une détection locale limitée). Elle s'obtient en 2 minutes
-          sur <strong>aistudio.google.com</strong>, sans carte bancaire. Tant que tu n'actives pas la
-          facturation sur ce projet Google, l'usage ne peut jamais te coûter d'argent : au-delà du
-          quota gratuit, les requêtes échouent simplement, elles ne sont jamais facturées.
+        <p style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 10px" }}>
+          Une clé d'IA active : photo d'un repas, lecture d'étiquette, import de recette, idées du frigo,
+          Texte IA, coach sport (sans clé, la photo utilise une détection locale limitée).
+        </p>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, background: C.paperDark, borderRadius: 10, padding: 3 }}>
+          {[["gemini", "Gemini (gratuit)"], ["grok", "Grok (xAI)"]].map(([k, l]) => (
+            <button key={k} onClick={() => chooseProvider(k)} style={{
+              flex: 1, padding: "8px 0", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 600,
+              background: provider === k ? C.card : "transparent", color: provider === k ? C.herb : C.inkSoft,
+            }}>{l}</button>
+          ))}
+        </div>
+        <p style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, margin: "0 0 10px" }}>
+          {provider === "gemini"
+            ? <>Clé gratuite sur <strong>aistudio.google.com</strong>, bouton « Get API key », sans carte bancaire. Tant que tu n'actives pas la facturation sur ce projet Google, l'usage ne peut jamais te coûter d'argent : au-delà du quota gratuit, les requêtes échouent simplement.</>
+            : <>Clé sur <strong>console.x.ai</strong> (rubrique API Keys). Attention : xAI facture à l'usage, vérifie ton crédit et ta limite de dépense sur la console. La lecture de <strong>vidéo</strong> (import de recette) n'existe que chez Gemini : garde aussi une clé Gemini pour elle.</>}
         </p>
         <div style={{ position: "relative", marginBottom: 10 }}>
           <input
-            type={showKey ? "text" : "password"} value={info.geminiApiKey || ""} placeholder="Colle ta clé Gemini ici"
-            onChange={(e) => setInfo({ ...info, geminiApiKey: e.target.value })}
+            type={showKey ? "text" : "password"} value={info[keyField] || ""} placeholder={provider === "grok" ? "Colle ta clé xAI (xai-…) ici" : "Colle ta clé Gemini ici"}
+            onChange={(e) => setInfo({ ...info, [keyField]: e.target.value })}
             style={{ width: "100%", padding: "10px 40px 10px 12px", borderRadius: 10, border: `1px solid ${C.line}`, fontSize: 13, fontFamily: "'IBM Plex Mono',monospace" }}
           />
           <button onClick={() => setShowKey(!showKey)} style={{ position: "absolute", right: 8, top: 8, background: "none", border: "none", color: C.inkSoft, padding: 4 }}>
@@ -318,32 +341,22 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
         {keyTest && !keyTest.loading && (
           <p style={{ fontSize: 12, margin: "8px 0 0", color: keyTest.ok ? C.herb : C.berry, lineHeight: 1.45 }}>{keyTest.text}</p>
         )}
-        <GeminiModelPicker apiKey={(info.geminiApiKey || "").replace(/\s+/g, "")} />
+        {provider === "grok"
+          ? <ModelPicker key="grok" apiKey={curKey} getPref={getGrokModelPref} setPref={setGrokModelPref} getCached={getCachedGrokModelList} refresh={refreshGrokModelList} />
+          : <ModelPicker key="gemini" apiKey={curKey} getPref={getGeminiModelPref} setPref={setGeminiModelPref} getCached={getCachedGeminiModelList} refresh={refreshGeminiModelList} />}
         <p style={{ fontSize: 11, color: C.inkSoft, margin: "10px 0 0", lineHeight: 1.5 }}>
-          Clé gratuite sur <strong>aistudio.google.com</strong>, bouton « Get API key ».
-          Cette clé reste uniquement sur ton téléphone, dans le stockage local de l'app — elle n'est
-          jamais envoyée à un serveur autre que Google.
+          Les clés restent uniquement sur ton téléphone, dans le stockage local de l'app : elles ne sont envoyées
+          qu'à {provider === "grok" ? "xAI" : "Google"}, pour les analyses elles-mêmes.
+          {provider === "grok" && !(info.geminiApiKey || "").trim() && " Pour la lecture des vidéos, ajoute aussi une clé Gemini (repasse sur l'onglet Gemini)."}
         </p>
       </div>
 
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18 }}>
-        <p style={{ margin: "0 0 12px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Mes objectifs</p>
-        {field("kcal", "Objectif calories", "kcal")}
-        {field("prot", "Objectif protéines", "g")}
-        {field("carbs", "Objectif glucides", "g")}
-        {field("fat", "Objectif lipides", "g")}
-        {field("water", "Objectif hydratation", "ml")}
-        <div style={{ margin: "-4px 0 14px" }}>
-          <Toggle checked={local.foodWater !== false} onChange={(v) => setLocal({ ...local, foodWater: v })}
-            label="Compter l'eau des aliments"
-            sub="L'eau contenue dans ce que tu manges (fruits, légumes, soupes, laitages…) est estimée et ajoutée à ce que tu bois. Seule l'eau bue est envoyée à Health Connect." />
-        </div>
-        <button onClick={() => { onSave(local); setSaved(true); setTimeout(() => setSaved(false), 1800); }} style={{
-          width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.herb, color: C.onAccent, fontWeight: 600, fontSize: 14, marginTop: 6,
-        }}>
-          {saved ? "Objectifs enregistrés ✓" : "Enregistrer"}
-        </button>
-      </div>
+        </>}
+        {page === "rappels" && <RemindersCard />}
+        {page === "sauvegarde" && <BackupCard />}
+        {page === "apparence" && <ThemeCard />}
+        {page === "maj" && <UpdateCard />}
+        {page === "apropos" && <>
       <p style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 16, lineHeight: 1.5 }}>
         NutriMaison enregistre tout localement — repas, recettes et objectifs — sans compte, sans abonnement, sans fonctionnalité verrouillée.
         <span style={{ display: "block", marginTop: 10 }}>
@@ -356,21 +369,85 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
           SANS AUCUNE GARANTIE. Vous pouvez le redistribuer et le modifier selon les termes de cette licence.
         </span>
       </p>
+        </>}
+      </div>
+    );
+  }
+
+  /* ---------- page d'accueil « Moi » ---------- */
+  const hcState = loadHC();
+  const ago = (t) => { if (!t) return null; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "à l'instant" : m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : `le ${new Date(t).toLocaleDateString("fr-FR")}`; };
+  const rem = loadReminders(), bk = loadAutoBackup(), theme = loadThemePref();
+  const bmrH = loadJSON("bmrHistory", {}); const bmrLast = Object.keys(bmrH).sort().pop();
+  const bmrVal = bmrLast ? (Object.entries(bmrH[bmrLast]).find(([o]) => /withings/i.test(o)) || Object.entries(bmrH[bmrLast])[0])?.[1] : null;
+  const objLabel = { perte: "perte de poids", maintien: "maintien", prise: "prise de masse" }[personalInfo.objectif] || "objectif";
+  const fr = (v) => String(round(v)).replace(".", ",");
+  const tile = (key, Icon, label, value, sub) => (
+    <button key={key} onClick={() => onOpenBody(key)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 12, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, color: C.ink, textAlign: "left" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.inkSoft }}><Icon size={13} /> {label}</span>
+      <b style={{ fontFamily: MONO, fontSize: 17 }}>{value}</b>
+      <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.inkSoft }}>{sub}</span>
+    </button>
+  );
+  const rows = [
+    ["hc", HeartPulse, "Health Connect", hcState.enabled ? (hcState.lastSync ? "Synchronisé " + ago(hcState.lastSync) : "Activé") : "Désactivé"],
+    ["ia", Sparkles, "Intelligence artificielle", (personalInfo.aiProvider === "grok" ? (personalInfo.grokApiKey ? "Grok" : "Grok · pas de clé") : (personalInfo.geminiApiKey ? "Gemini" : "Pas de clé")) + " · modèle " + ((personalInfo.aiProvider === "grok" ? getGrokModelPref() : getGeminiModelPref()) === "auto" ? "automatique" : "choisi")],
+    ["rappels", Bell, "Rappels", [rem.morning.on && `pesée ${rem.morning.time}`, rem.evening.on && `repas ${rem.evening.time}`].filter(Boolean).join(" · ") || "Aucun"],
+    ["sauvegarde", CloudUpload, "Sauvegarde", bk.on ? "Automatique" + (bk.last ? " · " + ago(bk.last) : "") : "Manuelle"],
+    ["apparence", Moon, "Apparence", { auto: "Comme le téléphone", light: "Clair", dark: "Sombre" }[theme] || "Comme le téléphone"],
+    ["maj", RefreshCw, "Mises à jour", "Version " + APP_VERSION],
+    ["apropos", Info, "À propos et sources", "Licence, données Ciqual et Open Food Facts"],
+  ];
+  return (
+    <div style={{ padding: "28px 20px 8px" }}>
+      <h1 style={{ margin: "0 0 14px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 26 }}>Moi</h1>
+      <button onClick={() => setPage("objectifs")} style={{ width: "100%", textAlign: "left", background: C.hero, color: C.onHero, border: "none", borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ flex: 1 }}>
+          <span style={{ display: "block", fontSize: 12, opacity: 0.8 }}>Objectif · {objLabel}</span>
+          <span style={{ display: "block", fontFamily: MONO, fontSize: 22, fontWeight: 700 }}>{goals.kcal.toLocaleString("fr-FR")} kcal / jour</span>
+          <span style={{ display: "block", fontFamily: MONO, fontSize: 12, opacity: 0.85 }}>P {goals.prot} · G {goals.carbs} · L {goals.fat} · eau {goals.water.toLocaleString("fr-FR")} ml</span>
+        </span>
+        <span style={{ padding: "5px 11px", borderRadius: 999, background: "rgba(255,255,255,0.16)", fontSize: 12, fontWeight: 700 }}>Modifier</span>
+      </button>
+
+      <p style={LBL}>Corps & progrès</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {tile("poids", Scale, "Poids", weightStats?.latestTrend ? `${fr(weightStats.latestTrend)} kg` : "—", weightStats?.change7 != null ? `${weightStats.change7 > 0 ? "+" : ""}${fr(weightStats.change7)} kg / 7 j` : "se peser")}
+        {tile("mesures", Ruler, "Masse grasse", bodyFat ? `${fr(bodyFat.bf)} %` : "—", bodyFat ? "d'après tes mesures" : "ajouter des mesures")}
+        {tile("besoin", Gauge, "Besoin réel", weightStats?.adaptive?.ok ? weightStats.adaptive.tdee.toLocaleString("fr-FR") : "—", weightStats?.adaptive?.ok ? "kcal / jour" : "en cours de calcul")}
+        {tile("metab", LineChart, "Métabolisme", bmrVal ? bmrVal.toLocaleString("fr-FR") : "—", bmrVal ? "kcal / jour" : "via Health Connect")}
+      </div>
+
+      <p style={LBL}>Réglages</p>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, overflow: "hidden", marginBottom: 16 }}>
+        {rows.map(([k, Icon, label, sub], i) => (
+          <button key={k} onClick={() => { setPage(k); window.scrollTo(0, 0); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "none", borderTop: i ? `1px solid ${C.line}` : "none", background: "transparent", color: C.ink, textAlign: "left" }}>
+            <span style={{ width: 34, height: 34, borderRadius: 10, background: C.sage, color: C.herb, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={17} /></span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <b style={{ display: "block", fontSize: 14 }}>{label}</b>
+              <span style={{ display: "block", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>
+            </span>
+            <ChevronRight size={17} color={C.inkSoft} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
+
+const LBL = { fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: C.inkSoft, margin: "16px 4px 8px" };
 
 export const profileLinkBtn = {
   flex: 1, padding: "9px 10px", borderRadius: 10, border: "none", background: C.sage, color: C.herb, fontWeight: 600, fontSize: 12.5,
 };
 
 /** Rappels du soir (si rien n'est noté) et du matin (pesée). */
-/* Choix du modèle Gemini : automatique, ou un modèle précis pris dans la liste de la clé. */
-function GeminiModelPicker({ apiKey }) {
-  const [pref, setPref] = useState(getGeminiModelPref);
-  const [list, setList] = useState(() => getCachedGeminiModelList(apiKey));
+/* Choix du modèle (Gemini ou Grok) : automatique, ou un modèle précis pris dans la liste de la clé. */
+function ModelPicker({ apiKey, getPref, setPref: savePref, getCached, refresh: refreshList }) {
+  const [pref, setPref] = useState(getPref);
+  const [list, setList] = useState(() => getCached(apiKey));
   const [state, setState] = useState(null);
-  useEffect(() => setList(getCachedGeminiModelList(apiKey)), [apiKey]);
+  useEffect(() => setList(getCached(apiKey)), [apiKey]);
   const models = list?.models || [];
   // un modèle choisi qui n'est plus dans la liste reste affiché (Google l'a peut-être retiré)
   const options = pref !== "auto" && !models.includes(pref) ? [pref, ...models] : models;
@@ -379,13 +456,13 @@ function GeminiModelPicker({ apiKey }) {
     if (!apiKey) { setState({ ok: false, text: "Colle et enregistre d'abord ta clé." }); return; }
     setState({ loading: true });
     try {
-      const l = await refreshGeminiModelList(apiKey);
+      const l = await refreshList(apiKey);
       setList(l);
       if (pref !== "auto" && !l.models.includes(pref)) setState({ ok: false, text: pref + " n'est plus proposé par Google : repasse en automatique ou choisis-en un autre." });
       else setState(null);
     } catch (e) { setState({ ok: false, text: "Échec : " + e.message }); }
   }
-  function choose(v) { setPref(v); setGeminiModelPref(v); }
+  function choose(v) { setPref(v); savePref(v); }
 
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
