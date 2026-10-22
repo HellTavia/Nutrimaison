@@ -1,0 +1,46 @@
+# Fabrique chaque mois les bases d'aliments hors ligne à partir de l'export d'Open Food Facts
+# et les publie dans la Release « db » (pré-version : n'apparaît pas comme mise à jour de l'appli).
+#   off-top.json.gz          base intégrée (récupérée par build-apk.sh au moment de compiler)
+#   nutrimaison-db.json      manifeste de la base complète
+#   nutrimaison-db-AAAAMMJJ-K.gz  base complète découpée (téléchargée depuis l'appli, en option)
+# Lancement manuel possible : onglet Actions → « Base d'aliments hors ligne » → Run workflow.
+name: Base d'aliments hors ligne
+
+on:
+  schedule:
+    - cron: "17 3 2 * *"   # le 2 de chaque mois, 3 h 17 UTC
+  workflow_dispatch:
+    inputs:
+      top:
+        description: "Nombre de produits de la base intégrée"
+        default: "100000"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fabriquer les bases (lecture en flux de l'export Open Food Facts)
+        run: node --max-old-space-size=6144 scripts/build-food-db.mjs off --country france --top "${{ github.event.inputs.top || '100000' }}" --out build-db
+      - name: Publier dans la Release « db »
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gzip -9 -k build-db/off-top.json
+          gh release view db >/dev/null 2>&1 || gh release create db --prerelease --title "Base d'aliments hors ligne" \
+            --notes "Fabriquée automatiquement chaque mois à partir d'Open Food Facts (licence ODbL). Ne pas installer : ces fichiers sont téléchargés par l'appli."
+          # les nouvelles parties portent la date : on les envoie, puis le manifeste, puis on retire les anciennes
+          # (les téléphones qui téléchargent pendant ce temps gardent une version cohérente)
+          gh release upload db build-db/off-top.json.gz build-db/nutrimaison-db-*.gz --clobber
+          gh release upload db build-db/nutrimaison-db.json --clobber
+          keep=$(node -p "require('./build-db/nutrimaison-db.json').parts.map(p => p.name).join(' ')")
+          for a in $(gh release view db --json assets -q '.assets[].name' | grep '^nutrimaison-db-.*\.gz$' || true); do
+            case " $keep " in *" $a "*) ;; *) gh release delete-asset db "$a" -y ;; esac
+          done
