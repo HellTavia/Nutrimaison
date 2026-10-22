@@ -5,7 +5,7 @@
 - **Base complète en option** (Moi → Base hors ligne) : tous les produits vendus en France sur Open Food Facts, téléchargés depuis la Release « db » du dépôt (taille et date affichées, Wi-Fi conseillé). Découpée en morceaux avec un index (code-barres → produit, mots → produits) : l'appli ne lit que les morceaux utiles. Mise à jour et suppression d'un bouton ; chaque partie est vérifiée (SHA-256).
 - Ordre de recherche : tes produits, Ciqual, base intégrée, base complète, puis Open Food Facts en ligne. Un code-barres connu hors ligne s'ouvre instantanément ; inconnu et sans réseau, l'appli propose de créer le produit.
 - Les aliments USDA apparaissent après Ciqual dans « Aliments de base », marqués « USDA (traduit) ».
-- `scripts/build-food-db.mjs` fabrique les bases (export Open Food Facts lu en flux, sans stockage ; traduction USDA par Gemini, faite une seule fois et reprise possible). `.github/workflows/food-db.yml` la relance chaque mois et publie le résultat ; `build-apk.sh` récupère la dernière base intégrée avant de compiler.
+- `scripts/build-food-db.mjs` fabrique les bases (export Open Food Facts lu en flux, sans stockage ; traduction USDA par Gemini, faite une seule fois et reprise possible). Il lit le nouveau format de nutrition d'Open Food Facts (2026) comme l'ancien, affiche pourquoi des produits sont écartés, et ne publie rien si trop peu de produits sont retenus. `.github/workflows/food-db.yml` la relance chaque mois et publie le résultat ; `build-apk.sh` récupère la dernière base intégrée avant de compiler.
 
 ## 2.28.0 — interface épurée
 Toutes les fonctions sont conservées, rangées autrement.

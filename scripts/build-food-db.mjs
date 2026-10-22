@@ -5,7 +5,7 @@
  * Fabrique les bases d'aliments hors ligne de NutriMaison. Aucune dépendance : Node 18 ou plus.
  *
  *  1) Produits de marque (Open Food Facts, licence ODbL)
- *       node scripts/build-food-db.mjs off [--source URL|fichier.jsonl.gz] [--country france] [--top 100000] [--out build-db]
+ *       node scripts/build-food-db.mjs off [--source URL|fichier.jsonl.gz] [--country france] [--top 100000] [--out build-db] [--limit N]
  *     Lit l'export JSONL complet d'Open Food Facts AU FIL DE L'EAU (rien n'est stocké sur le disque,
  *     environ 7 à 8 Go sont téléchargés), garde les produits vendus dans le pays choisi avec des valeurs
  *     nutritionnelles complètes, les classe par popularité (nombre de scans) et écrit :
@@ -18,7 +18,7 @@
  *       w/<ab>.json  index des mots (sans accents) → rangs des produits, rangés par les 2 premières lettres
  *
  *  2) Aliments génériques américains traduits (USDA FoodData Central « SR Legacy », domaine public)
- *       GEMINI_API_KEY=… node scripts/build-food-db.mjs usda [--zip fichier.zip] [--model gemini-flash-latest]
+ *       GEMINI_API_KEY=… node scripts/build-food-db.mjs usda [--zip fichier.zip] [--model gemma-3-27b-it] [--rpm 20]
  *     Télécharge (ou lit) le zip CSV SR Legacy, garde les aliments génériques (sans marque), traduit les
  *     noms en français avec Gemini (une seule fois : les traductions sont gardées dans
  *     scripts/usda-translations.json, on peut interrompre et relancer) et écrit src/data/usda-fr.json.
@@ -75,26 +75,52 @@ async function openStream(source) {
 /* ================================================================ */
 /* 1. OPEN FOOD FACTS                                                */
 /* ================================================================ */
+/* Valeurs pour 100 g. Depuis 2026, Open Food Facts range la nutrition dans nutrition.aggregated_set.nutrients
+   (unités normalisées : g, kcal pour energy-kcal, kJ pour energy) ; l'ancien champ « nutriments » n'est plus
+   présent pour la plupart des produits. On lit le nouveau format, puis l'ancien en secours. */
+const AGG_KEYS = { kcal: ["energy-kcal"], kj: ["energy", "energy-kj"], prot: ["proteins"], carbs: ["carbohydrates"], fat: ["fat"],
+  sugar: ["sugars"], fiber: ["fiber", "fibers"], salt: ["salt"], sodium: ["sodium"], satfat: ["saturated-fat"] };
+const OLD_KEYS = { kcal: ["energy-kcal_100g"], kj: ["energy_100g", "energy-kj_100g"], prot: ["proteins_100g"], carbs: ["carbohydrates_100g"],
+  fat: ["fat_100g"], sugar: ["sugars_100g"], fiber: ["fiber_100g"], salt: ["salt_100g"], sodium: ["sodium_100g"], satfat: ["saturated-fat_100g"] };
+export function nutrientsOf(p) {
+  const out = {};
+  const agg = p.nutrition?.aggregated_set;
+  const aggOk = agg && agg.nutrients && (!agg.per || /^100\s*(g|ml)$/i.test(agg.per)) && (!agg.preparation || agg.preparation === "as_sold");
+  const old = p.nutriments || {};
+  for (const k of Object.keys(AGG_KEYS)) {
+    let v = null;
+    if (aggOk) for (const key of AGG_KEYS[k]) { const e = agg.nutrients[key]; v = num(e && typeof e === "object" ? (e.value ?? e.value_computed) : e); if (v != null) break; }
+    if (v == null) for (const key of OLD_KEYS[k]) { v = num(old[key]); if (v != null) break; }
+    out[k] = v;
+  }
+  if (out.kcal == null && out.kj != null) out.kcal = out.kj / 4.184;
+  if (out.salt == null && out.sodium != null) out.salt = out.sodium * 2.5;
+  return out;
+}
+
+export const rejects = {}; // raison → nombre, pour le bilan affiché en fin de lecture
+const reject = (why) => { rejects[why] = (rejects[why] || 0) + 1; return null; };
+
 /** Produit Open Food Facts → ligne compacte, ou null s'il est incomplet ou incohérent. */
 export function offRow(p, country) {
-  if (!p || !Array.isArray(p.countries_tags) || !p.countries_tags.includes("en:" + country)) return null;
+  if (!p) return null;
+  const tags = p.countries_tags || p.countries_hierarchy;
+  if (!Array.isArray(tags) || !tags.includes("en:" + country)) return null; // hors pays : pas compté
   const code = String(p.code || p._id || "").replace(/\D/g, "");
-  if (code.length < 8 || code.length > 14) return null;
-  const n = p.nutriments || {};
-  let kcal = num(n["energy-kcal_100g"]);
-  if (kcal == null && num(n.energy_100g) != null) kcal = num(n.energy_100g) / 4.184;
-  const prot = num(n.proteins_100g), carbs = num(n.carbohydrates_100g), fat = num(n.fat_100g);
-  if ([kcal, prot, carbs, fat].some((v) => v == null)) return null;
-  if (kcal < 0 || kcal > 950 || [prot, carbs, fat].some((v) => v < 0 || v > 100) || prot + carbs + fat > 105) return null;
+  if (code.length < 8 || code.length > 14) return reject("code-barres invalide");
+  const n = nutrientsOf(p);
+  const { kcal, prot, carbs, fat } = n;
+  if ([kcal, prot, carbs, fat].some((v) => v == null)) return reject("valeurs nutritionnelles manquantes");
+  if (kcal < 0 || kcal > 950 || [prot, carbs, fat].some((v) => v < 0 || v > 100) || prot + carbs + fat > 105) return reject("valeurs incohérentes");
   const name = clean(p.product_name_fr || (p.lang === "fr" && p.product_name) || p.product_name || p.generic_name_fr, 90);
-  if (name.length < 2) return null;
+  if (name.length < 2) return reject("sans nom");
   const brand = clean(String(p.brands || "").split(",")[0], 40);
-  const opt1 = (k) => { const v = num(n[k]); return v == null || v < 0 || v > 100 ? null : r1(v); };
+  const opt1 = (v) => (v == null || v < 0 || v > 100 ? null : r1(v));
   const portion = num(p.serving_quantity);
   return {
     code, scans: Number(p.unique_scans_n) || 0, compl: Number(p.completeness) || 0,
-    row: [code, name, brand, Math.round(kcal), r1(prot), r1(carbs), r1(fat), opt1("sugars_100g"), opt1("fiber_100g"), opt1("salt_100g"),
-      opt1("saturated-fat_100g"), portion > 0 && portion <= 1000 ? Math.round(portion) : null],
+    row: [code, name, brand, Math.round(kcal), r1(prot), r1(carbs), r1(fat), opt1(n.sugar), opt1(n.fiber), opt1(n.salt),
+      opt1(n.satfat), portion > 0 && portion <= 1000 ? Math.round(portion) : null],
   };
 }
 export const OFF_FIELDS = ["code", "name", "brand", "kcal", "prot", "carbs", "fat", "sugar", "fiber", "salt", "satfat", "portion"];
@@ -110,20 +136,36 @@ async function buildOff() {
   const stream = (await openStream(source)).pipe(zlib.createGunzip());
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   const byCode = new Map();
-  let lines = 0, bad = 0;
+  let lines = 0, bad = 0, inCountry = 0, sample = null;
+  const limit = Number(opt("limit", 0)); // pour un essai rapide : s'arrête après N lignes
   const t0 = Date.now();
   for await (const line of rl) {
     lines++;
     if (lines % 200000 === 0) log(`  ${lines.toLocaleString("fr-FR")} produits lus, ${byCode.size.toLocaleString("fr-FR")} retenus (${Math.round((Date.now() - t0) / 1000)} s)`);
+    if (limit && lines >= limit) break;
     if (!line.includes(`"en:${country}"`)) continue; // tri rapide avant de lire le JSON
     let p; try { p = JSON.parse(line); } catch (e) { bad++; continue; }
+    if (limit && lines >= limit) break;
+    const tags = p.countries_tags || p.countries_hierarchy;
+    if (!Array.isArray(tags) || !tags.includes("en:" + country)) continue;
+    inCountry++;
     const r = offRow(p, country);
-    if (!r) continue;
+    if (!r) { if (!sample && (p.unique_scans_n || 0) > 20) sample = p; continue; } // exemple pour le diagnostic
     const prev = byCode.get(r.code);
     if (!prev || r.scans > prev.scans) byCode.set(r.code, r);
   }
-  log(`Lecture terminée : ${lines.toLocaleString("fr-FR")} produits, ${byCode.size.toLocaleString("fr-FR")} retenus pour « ${country} »${bad ? `, ${bad} lignes illisibles` : ""}.`);
+  const fr = (v) => v.toLocaleString("fr-FR");
+  log(`Lecture terminée : ${fr(lines)} produits, dont ${fr(inCountry)} vendus en « ${country} », ${fr(byCode.size)} retenus${bad ? `, ${bad} lignes illisibles` : ""}.`);
+  const why = Object.entries(rejects).sort((a, b) => b[1] - a[1]);
+  if (why.length) log("Écartés : " + why.map(([k, v]) => `${k} ${fr(v)}`).join(", "));
+  if (sample) {
+    const short = (o) => JSON.stringify(o, null, 0)?.slice(0, 1500);
+    log(`Exemple d'un produit écarté (${sample.code}) :\n  clés : ${Object.keys(sample).filter((k) => /nutri|energy|serving|countries|product_name$/.test(k)).join(", ")}` +
+      `\n  nutriments : ${short(sample.nutriments)}\n  nutrition : ${short(sample.nutrition)}`);
+  }
   if (!byCode.size) die("aucun produit retenu : vérifie le pays (--country) et la source");
+  const min = Number(opt("min", limit ? 0 : 5000));
+  if (byCode.size < min) die(`seulement ${fr(byCode.size)} produits retenus (minimum ${fr(min)}) : le format d'Open Food Facts a sans doute changé, rien n'est publié.`);
 
   const all = [...byCode.values()].sort((a, b) => b.scans - a.scans || b.compl - a.compl || a.code.localeCompare(b.code));
   const date = new Date().toISOString().slice(0, 10);
@@ -193,43 +235,70 @@ export const USDA_FIELDS = ["id", "name", "kcal", "prot", "carbs", "fat", "sugar
 /** Aliment de marque (mot en majuscules de 4 lettres ou plus : KELLOGG'S, MCDONALD'S…) : inutile en France. */
 export const isBranded = (d) => /\b[A-Z][A-Z'&.-]{3,}\b/.test(d);
 
+// unzip sous Linux/macOS ; sinon tar (bsdtar, fourni avec Windows 10 et 11), qui lit aussi les zip.
+function zipTool() {
+  for (const t of ["unzip", "tar"]) {
+    try { execFileSync(t, t === "unzip" ? ["-v"] : ["--version"], { stdio: "ignore" }); return t; } catch {}
+  }
+  die("ni unzip ni tar trouvés pour ouvrir le zip USDA");
+}
 function readZipCsv(zip, name) {
-  const list = execFileSync("unzip", ["-Z1", zip], { encoding: "utf8" }).split("\n");
+  const t = zipTool();
+  const list = execFileSync(t, t === "unzip" ? ["-Z1", zip] : ["-tf", zip], { encoding: "utf8", maxBuffer: 1 << 26 }).split(/\r?\n/);
   const entry = list.find((l) => l.endsWith("/" + name) || l === name);
   if (!entry) die(`${name} absent du zip`);
-  return execFileSync("unzip", ["-p", zip, entry], { encoding: "utf8", maxBuffer: 1 << 30 });
+  return execFileSync(t, t === "unzip" ? ["-p", zip, entry] : ["-xOf", zip, entry], { encoding: "utf8", maxBuffer: 1 << 30 });
 }
+
+// Modèles essayés dans l'ordre : Gemma a le plus gros quota gratuit (environ 30 requêtes/min, 14 400/jour),
+// les Gemini Flash sont bien plus limités. --model force un modèle précis.
+const USDA_MODELS = ["gemma-3-27b-it", "gemini-flash-lite-latest", "gemini-flash-latest"];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function translateBatch(key, model, items) {
   const prompt = `Traduis en français ces noms d'aliments de la base nutritionnelle américaine USDA, dans le style de la table française Ciqual :
 nom de l'aliment d'abord, puis les précisions séparées par des virgules (« Poulet, blanc, sans peau, rôti »), vocabulaire courant en France,
 unités et marques américaines retirées si elles n'aident pas. Garde EXACTEMENT le même ordre et le même nombre d'éléments.
-Réponds UNIQUEMENT avec un tableau JSON de chaînes.
+Réponds UNIQUEMENT avec un tableau JSON de chaînes, sans aucun autre texte.
 ${JSON.stringify(items.map((x) => x.desc))}`;
-  for (let attempt = 0; attempt < 6; attempt++) {
+  const generationConfig = { temperature: 0.1 };
+  if (!model.startsWith("gemma")) generationConfig.responseMimeType = "application/json"; // Gemma refuse ce mode
+  for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }),
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
-      let arr; try { arr = JSON.parse(text.replace(/```json|```/g, "")); } catch (e) { arr = null; }
+      const m = text.match(/\[[\s\S]*\]/);
+      let arr; try { arr = JSON.parse(m ? m[0] : text); } catch (e) { arr = null; }
       if (Array.isArray(arr) && arr.length === items.length) return arr.map((s) => clean(s, 90));
       log("  réponse incomplète, nouvel essai…");
-    } else {
-      const wait = res.status === 429 || res.status >= 500 ? 20000 * (attempt + 1) : 0;
-      if (!wait) die("Gemini : " + (data.error?.message || res.status));
-      log(`  Gemini saturé (${res.status}), pause de ${wait / 1000} s…`);
-      await new Promise((r) => setTimeout(r, wait));
+      continue;
     }
+    const msg = data.error?.message || String(res.status);
+    if (res.status === 404 || (res.status === 400 && /not found|not supported/i.test(msg))) return { unavailable: msg };
+    if (res.status === 429) {
+      // Quota du jour épuisé : inutile d'insister, on s'arrête proprement (reprise demain).
+      const perDay = JSON.stringify(data.error || {}).match(/PerDay/i);
+      if (perDay) return { daily: msg };
+      const delay = JSON.stringify(data.error || {}).match(/"retryDelay":"(\d+)s"/);
+      const wait = (delay ? Number(delay[1]) + 2 : 65) * 1000;
+      log(`  limite par minute atteinte, pause de ${Math.round(wait / 1000)} s…`);
+      await sleep(wait);
+      continue;
+    }
+    if (res.status >= 500) { log(`  Gemini indisponible (${res.status}), pause de 30 s…`); await sleep(30000); continue; }
+    die("Gemini : " + msg);
   }
   die("Gemini ne répond pas correctement, relance plus tard (les traductions déjà faites sont gardées)");
 }
 
 async function buildUsda() {
   const key = process.env.GEMINI_API_KEY;
-  const model = opt("model", "gemini-flash-latest");
+  let models = opt("model", null) ? [opt("model", null)] : USDA_MODELS.slice();
+  const rpm = Number(opt("rpm", 0)); // requêtes par minute ; 0 = selon le modèle
   let zip = opt("zip", null);
   if (!zip) {
     zip = path.join(ROOT, "build-db", "usda-sr-legacy.zip");
@@ -262,14 +331,25 @@ async function buildUsda() {
   const todo = list.filter((x) => !cache[x.id]);
   if (todo.length) {
     if (!key) die(`${todo.length} noms à traduire : lance avec GEMINI_API_KEY=ta_clé (clé gratuite de aistudio.google.com)`);
-    log(`Traduction de ${todo.length} noms avec ${model} (par lots de 120, reprise possible)…`);
-    for (let i = 0; i < todo.length; i += 120) {
+    const gap = (m) => 60000 / (rpm || (m.startsWith("gemma") ? 20 : 4)) ; // marge sous les limites gratuites
+    log(`Traduction de ${todo.length} noms par lots de 120 (reprise possible), modèle ${models[0]}…`);
+    for (let i = 0; i < todo.length; ) {
       const batch = todo.slice(i, i + 120);
-      const fr = await translateBatch(key, model, batch);
+      const t0 = Date.now();
+      const fr = await translateBatch(key, models[0], batch);
+      if (fr.unavailable) {
+        log(`  ${models[0]} indisponible (${fr.unavailable})`);
+        models.shift();
+        if (!models.length) die("aucun modèle disponible : relance avec --model nom_du_modèle (voir aistudio.google.com)");
+        log(`  → essai avec ${models[0]}`);
+        continue;
+      }
+      if (fr.daily) die(`quota du jour épuisé pour ${models[0]} (${fr.daily}).\n  ${i} noms traduits ici, ils sont gardés : relance la même commande demain (le quota repart vers 9 h, heure de Paris), ou avec --model un_autre_modèle.`);
       batch.forEach((x, k) => { cache[x.id] = fr[k]; });
       fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 0));
-      log(`  ${Math.min(i + 120, todo.length)} / ${todo.length}`);
-      await new Promise((r) => setTimeout(r, 4500)); // reste sous la limite gratuite (requêtes par minute)
+      i += batch.length;
+      log(`  ${i} / ${todo.length}`);
+      if (i < todo.length) await sleep(Math.max(0, gap(models[0]) - (Date.now() - t0)));
     }
   }
   const rows = list.filter((x) => cache[x.id]).map((x) => [
@@ -287,7 +367,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (cmd === "off") await buildOff();
   else if (cmd === "usda") await buildUsda();
   else {
-    log("Utilisation :\n  node scripts/build-food-db.mjs off  [--source URL|fichier] [--country france] [--top 100000] [--out build-db]\n  GEMINI_API_KEY=… node scripts/build-food-db.mjs usda [--zip fichier.zip] [--model gemini-flash-latest]");
+    log("Utilisation :\n  node scripts/build-food-db.mjs off  [--source URL|fichier] [--country france] [--top 100000] [--out build-db] [--limit N]\n  GEMINI_API_KEY=… node scripts/build-food-db.mjs usda [--zip fichier.zip] [--model gemma-3-27b-it] [--rpm 20]");
     process.exit(cmd ? 1 : 0);
   }
 }
