@@ -21,6 +21,7 @@ import { Dashboard, scaleEntry } from "./views/Dashboard.jsx";
 import { AddView } from "./views/AddView.jsx";
 import { RecipeBuilder, RecipeDetail, RecipesView } from "./views/Recipes.jsx";
 import { ImportRecipeSheet } from "./RecipeImport.jsx";
+import { lookupOfflineBarcode, searchOfflineProducts, searchUsda, useOfflineReady } from "./offlineDb.js";
 import { ProfileView, runHcSyncRef } from "./views/Profile.jsx";
 import { APP_VERSION } from "./version.js";
 
@@ -253,6 +254,12 @@ export default function App() {
     setOffResults(staticMatches);
     setOffError(null);
     setOffLoading(true);
+    let alive = true;
+    // bases hors ligne (intégrée + complète si installée) : tout de suite, même sans réseau
+    searchOfflineProducts(q, 20).then((local) => {
+      if (!alive || !local.length) return;
+      setOffResults((prev) => { const ids = new Set(prev.map((p) => p.id)); return [...prev, ...local.filter((p) => !ids.has(p.id))].slice(0, 30); });
+    }).catch(() => {});
     const handle = setTimeout(async () => {
       const products = await offTextSearch(q, 20);
       setOffResults((prev) => {
@@ -261,7 +268,7 @@ export default function App() {
       });
       setOffLoading(false);
     }, 450);
-    return () => clearTimeout(handle);
+    return () => { alive = false; clearTimeout(handle); };
   }, [searchQ, customFoods]);
 
   async function saveDay(next) {
@@ -492,17 +499,20 @@ export default function App() {
   }, [workouts, currentDate, dayData.steps, dayData.stepsSource, dayData.hc, personalInfo, sportSettings, hcVersion, allDays]);
 
   const ciqualReady = useCiqualReady();
+  const offlineReady = useOfflineReady(view === "add");
   const filteredFoods = useMemo(() => {
     if (!searchQ.trim()) return FOOD_DB.slice(0, 12);
     if (ciqualReady) {
       // Table Ciqual d'abord (valeurs officielles), puis nos quelques aliments maison absents de Ciqual
       const cq = searchCiqual(searchQ, 25);
       const extra = FOOD_DB.filter((f) => f.id.startsWith("x_") && matchesQuery(f.name, queryTokens(searchQ)));
-      return [...cq, ...extra].slice(0, 30);
+      // aliments génériques américains traduits : en complément, après la table Ciqual
+      const us = offlineReady ? searchUsda(searchQ, cq.length >= 20 ? 3 : 8) : [];
+      return [...cq.slice(0, 30 - us.length), ...extra, ...us].slice(0, 32);
     }
     const tokens = queryTokens(searchQ);
     return FOOD_DB.filter((f) => matchesQuery(f.name, tokens)).sort((a, b) => scoreMatch(a.name, searchQ) - scoreMatch(b.name, searchQ)).slice(0, 20);
-  }, [searchQ, ciqualReady]);
+  }, [searchQ, ciqualReady, offlineReady]);
 
   const allRecipes = useMemo(() => [
     ...RECIPES.map((r) => ({ ...r, custom: false })),
@@ -622,6 +632,11 @@ export default function App() {
     // produit déjà ajouté par l'utilisateur pour ce code-barres
     const mine = customFoods.find((f) => f.barcode === String(barcode));
     if (mine) { setAddTab("manuel"); setSelectedFood(mine); setGrams(100); return; }
+    // base hors ligne (intégrée, puis complète si téléchargée) : instantané et sans réseau
+    try {
+      const local = await lookupOfflineBarcode(barcode);
+      if (local) { setAddTab("manuel"); setSelectedFood(local); setGrams(local.portion || 100); return; }
+    } catch (e) {}
     try {
       const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + barcode + ".json?fields=product_name,brands,nutriments,image_small_url");
       const data = await res.json();
@@ -648,7 +663,8 @@ export default function App() {
         setScanMissing({ barcode: String(barcode), name: "" });
       }
     } catch (e) {
-      setScanError("Recherche impossible — vérifie ta connexion internet.");
+      setScanError("Produit absent des bases hors ligne, et recherche en ligne impossible (pas de connexion). Télécharge la base complète dans Moi → Base hors ligne, ou crée le produit ci-dessous.");
+      setScanMissing({ barcode: String(barcode), name: "" });
     }
   }
 

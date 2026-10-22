@@ -2,13 +2,15 @@
 // Copyright (C) 2026 Les auteurs de NutriMaison
 /* Profil : objectifs, rappels, Health Connect, sauvegarde, mises à jour */
 import React, { useState, useEffect } from "react";
-import { Bell, Calculator, ChevronLeft, ChevronRight, CloudUpload, Download, Eye, EyeOff, Flame, Gauge, HeartPulse, Info, LineChart, Moon, RefreshCw, Ruler, Scale, Sparkles, Upload } from "lucide-react";
+import { Bell, Calculator, Database, ChevronLeft, ChevronRight, CloudUpload, Download, Eye, EyeOff, Flame, Gauge, HeartPulse, Info, LineChart, Moon, RefreshCw, Ruler, Scale, Sparkles, Upload } from "lucide-react";
 import { autoBackupAvailable, buildBackup, loadAutoBackup, restoreBackup, saveAutoBackup, writeBackupFile } from "../backup.js";
 import { REPO_URL, checkForUpdate, loadUpdateState, openExternal, saveUpdateState } from "../updates.js";
 import { clearGeminiModelCache, geminiModelOrder, getCachedGeminiModelList, getGeminiModelPref, refreshGeminiModelList, setGeminiModelPref, getAiProvider, setAiProvider } from "../gemini.js";
 import { getCachedGrokModelList, getGrokModelPref, refreshGrokModelList, setGrokModelPref, grokModelOrder } from "../grok.js";
 import { applyTheme, loadThemePref, C, MONO, NumInput, SectionTitle, Tag, bmrMifflin, inputStyle, loadJSON, round, stepsKcal } from "../shared.jsx";
 import { loadHC } from "../healthconnect.js";
+import { OfflineDbCard } from "../OfflineDbCard.jsx";
+import { fullDbState } from "../offlineDb.js";
 import { Toggle, plannedWeeklySportKcal } from "../Sport.jsx";
 import { HealthConnectCard } from "../HealthConnectCard.jsx";
 import { ensureNotifPermission, loadReminders, remindersAvailable, saveReminders, syncReminders, testReminder } from "../reminders.js";
@@ -141,7 +143,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     ["prise", "Prise de masse"],
   ];
 
-  const pageTitle = { objectifs: "Objectifs", hc: "Health Connect", ia: "Intelligence artificielle", rappels: "Rappels", sauvegarde: "Sauvegarde", apparence: "Apparence", maj: "Mises à jour", apropos: "À propos" };
+  const pageTitle = { objectifs: "Objectifs", hc: "Health Connect", ia: "Intelligence artificielle", rappels: "Rappels", base: "Base hors ligne", sauvegarde: "Sauvegarde", apparence: "Apparence", maj: "Mises à jour", apropos: "À propos" };
   if (page) {
     return (
       <div style={{ padding: "24px 20px 8px" }}>
@@ -353,6 +355,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
 
         </>}
         {page === "rappels" && <RemindersCard />}
+        {page === "base" && <OfflineDbCard />}
         {page === "sauvegarde" && <BackupCard />}
         {page === "apparence" && <ThemeCard />}
         {page === "maj" && <UpdateCard />}
@@ -393,6 +396,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     ["hc", HeartPulse, "Health Connect", hcState.enabled ? (hcState.lastSync ? "Synchronisé " + ago(hcState.lastSync) : "Activé") : "Désactivé"],
     ["ia", Sparkles, "Intelligence artificielle", (personalInfo.aiProvider === "grok" ? (personalInfo.grokApiKey ? "Grok" : "Grok · pas de clé") : (personalInfo.geminiApiKey ? "Gemini" : "Pas de clé")) + " · modèle " + ((personalInfo.aiProvider === "grok" ? getGrokModelPref() : getGeminiModelPref()) === "auto" ? "automatique" : "choisi")],
     ["rappels", Bell, "Rappels", [rem.morning.on && `pesée ${rem.morning.time}`, rem.evening.on && `repas ${rem.evening.time}`].filter(Boolean).join(" · ") || "Aucun"],
+    ["base", Database, "Base hors ligne", fullDbState() ? `Complète · ${(fullDbState().count || 0).toLocaleString("fr-FR")} produits` : "Intégrée · base complète en option"],
     ["sauvegarde", CloudUpload, "Sauvegarde", bk.on ? "Automatique" + (bk.last ? " · " + ago(bk.last) : "") : "Manuelle"],
     ["apparence", Moon, "Apparence", { auto: "Comme le téléphone", light: "Clair", dark: "Sombre" }[theme] || "Comme le téléphone"],
     ["maj", RefreshCw, "Mises à jour", "Version " + APP_VERSION],

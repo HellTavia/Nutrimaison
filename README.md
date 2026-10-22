@@ -318,6 +318,22 @@ nutrimaison/
 
 Au démarrage, si la dernière copie date de plus de 7 jours (ou 1 jour, au choix dans **Moi → Sauvegarde**), l'app écrit une sauvegarde complète dans **Documents/NutriMaison/** du téléphone et garde les 4 plus récentes. Ce dossier n'appartient pas à l'app : il reste après « Effacer les données » ou une désinstallation. Pour restaurer : **Moi → Sauvegarde → Restaurer → Choisir un fichier**.
 
+## Bases d'aliments hors ligne
+
+| Base | Contenu | Où |
+|---|---|---|
+| Ciqual | 3 341 aliments génériques (Anses) | dans l'APK (`src/ciqual.json`) |
+| Produits de marque | les 100 000 produits les plus scannés en France (Open Food Facts) | dans l'APK (`src/data/off-top.json`) |
+| Génériques USDA | aliments génériques américains, noms traduits en français | dans l'APK (`src/data/usda-fr.json`) |
+| Base complète | tous les produits vendus en France sur Open Food Facts | téléchargement optionnel : Moi → Base hors ligne |
+
+**Fabrication** (`scripts/build-food-db.mjs`, Node 18+, aucune dépendance) :
+- `node scripts/build-food-db.mjs off --top 100000` lit l'export JSONL d'Open Food Facts en flux (≈ 7 Go téléchargés, rien n'est stocké), et écrit dans `build-db/` la base intégrée et la base complète découpée (`p/` produits, `c/` code-barres → produit, `w/` mots → produits) en parties d'environ 8 Mo avec leur manifeste.
+- **Automatique** : `.github/workflows/food-db.yml` le lance le 2 de chaque mois (ou à la main : onglet *Actions* → *Base d'aliments hors ligne* → *Run workflow*) et publie les fichiers dans la Release **« db »** (pré-version, invisible pour la vérification des mises à jour). `build-apk.sh` télécharge la dernière base intégrée avant chaque compilation (`NM_SKIP_DB=1` pour s'en passer).
+- **USDA, une seule fois** : `GEMINI_API_KEY=ta_clé node scripts/build-food-db.mjs usda` télécharge la base « SR Legacy », garde les aliments génériques sans marque, traduit les noms par lots (reprise possible, traductions gardées dans `scripts/usda-translations.json`) et écrit `src/data/usda-fr.json`. À committer ensuite avec le fichier de traductions.
+
+Licences : Open Food Facts (ODbL : base réutilisable à condition de citer la source et de partager les améliorations sous la même licence), Ciqual (Licence Ouverte Etalab), USDA FoodData Central (domaine public).
+
 ## Publier une version (APK)
 
 Pour le mainteneur du dépôt :

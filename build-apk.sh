@@ -149,6 +149,19 @@ ok "Clé « $ALIAS »"
 # ------------------------------------------------------------------
 bold "4/5 Compilation (quelques minutes la première fois)"
 if [ ! -d node_modules ] || [ package.json -nt node_modules ]; then npm install --no-fund --no-audit; fi
+# Base de produits intégrée : la dernière version publiée dans la Release « db » (fabriquée chaque mois
+# par GitHub Actions). Sans réseau, ou si elle n'est pas encore publiée, on garde celle du dossier.
+if [ "${NM_SKIP_DB:-}" != "1" ]; then
+  DBTMP="$(mktemp)"
+  if curl -fsSL --max-time 120 "https://github.com/HellTavia/Nutrimaison/releases/download/db/off-top.json.gz" -o "$DBTMP" 2>/dev/null \
+     && gunzip -c "$DBTMP" > "$DBTMP.json" 2>/dev/null && node -e "JSON.parse(require('fs').readFileSync(process.argv[1]))" "$DBTMP.json" 2>/dev/null; then
+    mv "$DBTMP.json" src/data/off-top.json
+    ok "Base de produits intégrée : $(node -p "require('./src/data/off-top.json').rows.length") produits"
+  else
+    warn "Base de produits intégrée non téléchargée (pas encore publiée ou hors ligne) : on garde celle du dossier ($(node -p "require('./src/data/off-top.json').rows.length") produits)."
+  fi
+  rm -f "$DBTMP" "$DBTMP.json"
+fi
 npm run build
 [ -d android ] || npx cap add android
 node scripts/patch-android.mjs
