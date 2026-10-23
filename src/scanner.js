@@ -71,6 +71,44 @@ async function decodeCanvas(canvas) {
   return null;
 }
 
+/* ---------------- protection des vieux téléphones ----------------
+ * Sur certains appareils (pilotes caméra anciens, ROM non officielles), demander une haute résolution
+ * ou la mise au point continue fait planter toute l'appli, sans erreur rattrapable. On note donc
+ * « ouverture en cours » avant d'ouvrir la caméra, et « ok » quand l'image arrive. Si l'appli a planté
+ * entre les deux, la fois suivante on ouvre la caméra en mode simple ; si ça plante encore, la caméra
+ * intégrée est désactivée et on passe par l'appareil photo d'Android. */
+const CAM_KEY = "cameraGuard";
+function camGuard() { try { return JSON.parse(localStorage.getItem(CAM_KEY)) || {}; } catch (e) { return {}; } }
+function setCamGuard(g) { try { localStorage.setItem(CAM_KEY, JSON.stringify(g)); } catch (e) {} }
+/** "full" (normal), "safe" (contraintes minimales) ou "off" (caméra intégrée désactivée). */
+export function cameraMode() {
+  const g = camGuard();
+  if (g.pending) { // l'ouverture précédente n'est jamais arrivée au bout : plantage
+    g.mode = g.mode === "safe" || g.mode === "off" ? "off" : "safe";
+    g.pending = false;
+    setCamGuard(g);
+  }
+  return g.mode || "full";
+}
+export function resetCameraMode() { setCamGuard({}); }
+export const CAMERA_OFF_MESSAGE = "La caméra intégrée a fait planter l'appli sur ce téléphone, elle est désactivée : utilise « Prendre en photo » (appareil photo d'Android).";
+async function openStream(full) {
+  const mode = cameraMode();
+  if (mode === "off") throw new Error(CAMERA_OFF_MESSAGE);
+  setCamGuard({ ...camGuard(), pending: true });
+  let stream;
+  try {
+    if (mode === "safe") stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "environment" } });
+    else {
+      try { stream = await navigator.mediaDevices.getUserMedia(full); }
+      catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } }); }
+    }
+  } catch (e) { setCamGuard({ ...camGuard(), pending: false }); throw e; } // refus ou erreur normale : pas un plantage
+  return { stream, mode };
+}
+/** À appeler quand l'image s'affiche : l'ouverture s'est bien passée. */
+function camOk() { setTimeout(() => setCamGuard({ ...camGuard(), pending: false }), 1500); }
+
 /**
  * Lance la caméra dans <video> et appelle onCode(code) au premier code lu.
  * Renvoie { stop(), setTorch(bool), hasTorch }.
@@ -85,21 +123,17 @@ export async function startLiveScan(video, onCode) {
       advanced: [{ focusMode: "continuous" }],
     },
   };
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-  } catch (e) {
-    // certains appareils refusent les contraintes avancées : on réessaie en simple
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } });
-  }
+  // certains appareils refusent les contraintes avancées : openStream réessaie en simple
+  const { stream, mode } = await openStream(constraints);
   const track = stream.getVideoTracks()[0];
-  try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
-  const caps = (track.getCapabilities && track.getCapabilities()) || {};
+  if (mode === "full") { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {} }
+  const caps = (mode === "full" && track.getCapabilities && track.getCapabilities()) || {};
 
   video.srcObject = stream;
   video.setAttribute("playsinline", "true");
   video.muted = true;
   await video.play().catch(() => {});
+  camOk();
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -170,19 +204,15 @@ export async function decodeImageFile(file) {
 
 /** Ouvre la caméra arrière dans <video> (pour prendre une photo de repas dans l'app). */
 export async function openCamera(video) {
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1440 }, advanced: [{ focusMode: "continuous" }] },
-    });
-  } catch (e) {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } });
-  }
+  const { stream } = await openStream({
+    audio: false,
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1440 }, advanced: [{ focusMode: "continuous" }] },
+  });
   video.srcObject = stream;
   video.setAttribute("playsinline", "true");
   video.muted = true;
   await video.play().catch(() => {});
+  camOk();
   return {
     stop() { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} try { video.srcObject = null; } catch (e) {} },
     /** Capture l'image courante en fichier JPEG (max 1600 px, suffisant pour l'IA et léger à envoyer). */

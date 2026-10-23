@@ -7,7 +7,7 @@ import { checkForUpdate, loadUpdateState, saveUpdateState } from "./updates.js";
 import { addToShopping } from "./Fridge.jsx";
 import { loadPlan, savePlan, planItemToEntries } from "./planning.js";
 import { PlanningView } from "./views/Planning.jsx";
-import { decodeImageFile, startLiveScan } from "./scanner.js";
+import { CAMERA_OFF_MESSAGE, decodeImageFile, startLiveScan } from "./scanner.js";
 import { geminiGenerate, parseJSONLoose, shrinkImage, activeAiKey, aiProviderLabel } from "./gemini.js";
 import { C, addDays, loadAllDays, loadJSON, round, saveJSON, stepsKcal, storage, todayISO, uid } from "./shared.jsx";
 import { SPORT_DEFAULTS, SportView, workoutsKcalOn } from "./Sport.jsx";
@@ -593,7 +593,7 @@ export default function App() {
       setScanning(false);
       setScanError(e && e.name === "NotAllowedError"
         ? "Accès à la caméra refusé. Autorise la caméra pour NutriMaison dans les paramètres Android."
-        : "Impossible d'ouvrir la caméra (" + (e && (e.name || e.message)) + ").");
+        : e?.message === CAMERA_OFF_MESSAGE ? CAMERA_OFF_MESSAGE : "Impossible d'ouvrir la caméra (" + (e && (e.name || e.message)) + ").");
     }
   }
   function stopScan() {

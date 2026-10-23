@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Camera, ChefHat, ChevronLeft, ChevronRight, FileText, Layers, Loader2, Plus, ScanLine, Search, ShoppingBag, Sparkles, Trash2, X } from "lucide-react";
 import { NewProductForm, Per100Fields } from "../MealTools.jsx";
 import { LabelScan } from "../LabelScan.jsx";
-import { openCamera } from "../scanner.js";
+import { CAMERA_OFF_MESSAGE, openCamera, resetCameraMode } from "../scanner.js";
 import { C, NumInput, Tag, inputStyle, round } from "../shared.jsx";
 import { AiTextMeal, aiFoodPer100 } from "../AiMeal.jsx";
 import { MEAL_LABELS, MEAL_ORDER, calcFromFood, recipeTotals, norm, recipeCat, RECIPE_CATS, MEAL_TO_CAT, recipeMeals } from "../foodData.js";
@@ -27,7 +27,7 @@ export function MealCamera({ onCapture, onCancel }) {
       camRef.current = cam; setReady(true);
     }).catch((e) => setError(e && e.name === "NotAllowedError"
       ? "Accès à la caméra refusé. Autorise la caméra pour NutriMaison dans les paramètres Android."
-      : "Impossible d'ouvrir la caméra."));
+      : e?.message === CAMERA_OFF_MESSAGE ? CAMERA_OFF_MESSAGE : "Impossible d'ouvrir la caméra."));
     return () => { alive = false; try { camRef.current?.stop(); } catch (e) {} };
   }, []);
   async function shoot() {
@@ -44,6 +44,17 @@ export function MealCamera({ onCapture, onCancel }) {
         {!ready && !error && <p style={{ position: "absolute", inset: 0, margin: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.onAccent, fontSize: 13 }}>Ouverture de la caméra…</p>}
       </div>
       {error && <p style={{ color: C.berry, fontSize: 12.5, margin: "0 0 10px" }}>{error}</p>}
+      {error && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <label style={{ flex: 2, padding: "11px 0", borderRadius: 12, background: C.herb, color: C.onAccent, fontSize: 13, fontWeight: 600, textAlign: "center" }}>
+            Prendre en photo
+            <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onCapture(f); }} />
+          </label>
+          {error === CAMERA_OFF_MESSAGE && (
+            <button onClick={() => { resetCameraMode(); onCancel(); }} style={{ flex: 1, padding: "11px 0", borderRadius: 12, border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, fontSize: 12 }}>Réessayer la caméra intégrée</button>
+          )}
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={onCancel} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, fontSize: 13 }}>Annuler</button>
         <button onClick={shoot} disabled={!ready} aria-label="Prendre la photo" style={{
@@ -457,6 +468,9 @@ export function AddView(props) {
           <style>{"@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}"}</style>
 
           {scanError && <p style={{ color: C.berry, fontSize: 13, marginTop: 10, marginBottom: 0 }}>{scanError}</p>}
+          {scanError === CAMERA_OFF_MESSAGE && (
+            <button onClick={() => { resetCameraMode(); onStartScan(); }} style={{ marginTop: 8, padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, fontSize: 12 }}>Réessayer la caméra intégrée</button>
+          )}
           {scanMissing && !scanning && (
             <NewProductForm key={scanMissing.barcode} barcode={scanMissing.barcode} initialName={scanMissing.name}
               geminiKey={hasGeminiKey ? geminiKey : ""} onSave={onSaveNewProduct} onCancel={onCancelMissing} />
