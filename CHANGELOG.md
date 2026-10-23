@@ -6,6 +6,7 @@
 - Les données ne changent pas de langue : on peut passer d'une langue à l'autre sans rien perdre.
 - Noms des aliments en anglais quand ils sont disponibles : noms officiels anglais de Ciqual (`scripts/ciqual-en.py`, à partir de la table anglaise de l'Anses) et noms américains d'origine de l'USDA (`node scripts/build-food-db.mjs usda`, sans clé si les traductions sont déjà faites). La recherche accepte alors les noms anglais. Sans ces fichiers, les noms des aliments restent en français.
 - `scripts/i18n-check.mjs` liste les textes de l'interface qui n'ont pas encore de traduction et les fusionne dans `src/i18n/en.json`.
+- **Caméra sur les vieux téléphones** : si l'ouverture de la caméra fait planter l'appli (pilotes anciens, ROM non officielles), elle repart la fois suivante en mode simple ; si ça plante encore, la caméra intégrée est désactivée et l'appli propose l'appareil photo d'Android (« Prendre en photo »), avec un bouton pour réessayer.
 - **README en français et en anglais** (`README.en.md`), avec des captures d'écran des deux versions.
 
 ## 2.29.1
