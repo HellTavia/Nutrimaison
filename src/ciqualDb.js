@@ -9,6 +9,8 @@
 /* ================================================================== */
 export const CIQUAL_CITATION = "Anses. 2025. Table de composition nutritionnelle des aliments Ciqual.";
 
+import { exactEn, foodNamesReady } from "./i18n.js";
+
 let cache = null;
 let loading = null;
 
@@ -19,7 +21,8 @@ const STOP = new Set(["de", "du", "des", "la", "le", "les", "l", "d", "au", "aux
 export function loadCiqual() {
   if (cache) return Promise.resolve(cache);
   if (!loading) {
-    loading = import("./ciqual.json").then((mod) => {
+    // en anglais, les noms anglais officiels (s'ils sont fournis) servent aussi à la recherche
+    loading = Promise.all([import("./ciqual.json"), foodNamesReady]).then(([mod]) => {
       const d = mod.default || mod;
       const idx = Object.fromEntries(d.fields.map((f, i) => [f, i]));
       cache = d.foods.map((r) => ({
@@ -34,6 +37,7 @@ export function loadCiqual() {
         water100: r[idx.water],
         ciqual: true,
         _n: norm(r[idx.name]),
+        _e: norm(exactEn(r[idx.name]) || ""),
         _g: norm(d.groups[r[idx.group]]),
       }));
       return cache;
@@ -50,14 +54,20 @@ export function searchCiqual(q, limit = 25) {
   const hits = [];
   for (const f of cache) {
     let ok = true;
-    for (const t of tokens) {
-      if (!(f._n.includes(t) || (t.length > 3 && t.endsWith("s") && f._n.includes(t.slice(0, -1))))) { ok = false; break; }
+    // le nom français, ou le nom anglais quand l'appli est en anglais
+    let key = f._n;
+    for (const k of f._e ? [f._n, f._e] : [f._n]) {
+      ok = true;
+      for (const t of tokens) {
+        if (!(k.includes(t) || (t.length > 3 && t.endsWith("s") && k.includes(t.slice(0, -1))))) { ok = false; break; }
+      }
+      if (ok) { key = k; break; }
     }
     if (!ok) continue;
     const first = tokens[0];
     // le mot cherché tôt dans le nom = aliment de base (« Pain, baguette » avant « Sandwich baguette … »)
-    const pos = f._n.indexOf(first);
-    let score = (pos === 0 ? 0 : 500) + pos * 8 + f._n.length;
+    const pos = key.indexOf(first);
+    let score = (pos === 0 ? 0 : 500) + pos * 8 + key.length;
     // plats composés (sandwichs, pizzas…) après les aliments simples, sauf si on les cherche
     if (COMPOSITE.test(f._g) && !tokens.some((t) => f._g.includes(t))) score += 400;
     hits.push([score, f]);

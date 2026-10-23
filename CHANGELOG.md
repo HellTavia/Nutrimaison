@@ -1,5 +1,17 @@
 # Historique des versions
 
+## 2.30.0 — français ou anglais
+- **L'appli existe en anglais** : Moi → Apparence et langue → Comme le téléphone, Français ou English (l'appli redémarre). Par défaut, elle suit la langue du téléphone.
+- En anglais : tous les écrans, boutons, messages et boîtes de dialogue sont traduits, ainsi que les recettes intégrées, les exercices et les programmes de sport ; dates et nombres au format anglais ; l'IA (Gemini ou Grok) répond en anglais.
+- Les données ne changent pas de langue : on peut passer d'une langue à l'autre sans rien perdre.
+- Noms des aliments en anglais quand ils sont disponibles : noms officiels anglais de Ciqual (`scripts/ciqual-en.py`, à partir de la table anglaise de l'Anses) et noms américains d'origine de l'USDA (`node scripts/build-food-db.mjs usda`, sans clé si les traductions sont déjà faites). La recherche accepte alors les noms anglais. Sans ces fichiers, les noms des aliments restent en français.
+- `scripts/i18n-check.mjs` liste les textes de l'interface qui n'ont pas encore de traduction et les fusionne dans `src/i18n/en.json`.
+- **README en français et en anglais** (`README.en.md`), avec des captures d'écran des deux versions.
+
+## 2.29.1
+- Base complète hors ligne gardée **compressée** sur le téléphone : 2 à 3 fois moins de place, chaque morceau n'est décompressé qu'au moment où une recherche en a besoin. Une base installée avec la 2.29.0 continue de marcher ; Moi → Base hors ligne propose de la réinstaller pour gagner la place.
+- Traduction USDA : noms complets (plus de coupure à 90 caractères, nom affiché raccourci à la dernière virgule), produits de marque mieux écartés, rythme adapté au quota gratuit (Gemma par défaut), arrêt propre quand le quota du jour est épuisé ; le script fonctionne aussi sous Windows.
+
 ## 2.29.0 — bases d'aliments hors ligne
 - **Base intégrée** : les produits de marque les plus scannés en France (100 000 par défaut, Open Food Facts) et des aliments génériques américains traduits en français (USDA), en plus de la table Ciqual. Recherche et **scan de code-barres sans réseau**.
 - **Base complète en option** (Moi → Base hors ligne) : tous les produits vendus en France sur Open Food Facts, téléchargés depuis la Release « db » du dépôt (taille et date affichées, Wi-Fi conseillé). Découpée en morceaux avec un index (code-barres → produit, mots → produits) : l'appli ne lit que les morceaux utiles. Mise à jour et suppression d'un bouton ; chaque partie est vérifiée (SHA-256).

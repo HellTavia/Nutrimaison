@@ -1,25 +1,47 @@
 <p align="center">
+  🇫🇷 <b>Français</b> · 🇬🇧 <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="docs/logo.png" width="120" alt="Logo NutriMaison">
 </p>
 
 <h1 align="center">NutriMaison</h1>
 
 <p align="center">
-  Suivi nutritionnel, poids et sport pour Android — en français, gratuit, sans compte et sans serveur.
+  Suivi nutritionnel, poids et sport pour Android — en français ou en anglais, gratuit, sans compte et sans serveur.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2F4A3C" alt="Licence GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-2F4A3C" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/version-2.19.1-C1922B" alt="Version 2.19.1">
+  <img src="https://img.shields.io/badge/version-2.30.0-C1922B" alt="Version 2.30.0">
 </p>
 
 > 📦 **Pas envie de compiler ?** L'APK prêt à installer est disponible dans les **[Releases](../../releases/latest)** : télécharge `nutrimaison-vX.Y.Z.apk` et installe-le directement sur ton téléphone ([voir comment](#installer-lapk-prêt-à-lemploi)).
+
+## Aperçu
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/fr/1-accueil.png" width="200" alt="Accueil"><br><sub>Accueil</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/2-ajouter.png" width="200" alt="Ajouter un aliment"><br><sub>Ajouter</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/3-recettes.png" width="200" alt="Recettes"><br><sub>Recettes</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/4-sport.png" width="200" alt="Sport"><br><sub>Sport</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/fr/5-moi.png" width="200" alt="Moi"><br><sub>Moi</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/6-poids.png" width="200" alt="Courbe de poids"><br><sub>Corps & progrès</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/7-activite.png" width="200" alt="Activité du jour"><br><sub>Activité du jour</sub></td>
+    <td align="center"><img src="docs/screenshots/fr/8-bilan.png" width="200" alt="Bilan de la semaine"><br><sub>Bilan de la semaine</sub></td>
+  </tr>
+</table>
 
 ---
 
 ## Sommaire
 
+- [Aperçu](#aperçu)
 - [Pourquoi NutriMaison](#pourquoi-nutrimaison)
 - [Fonctionnalités](#fonctionnalités)
 - [Comment ça marche](#comment-ça-marche)
@@ -49,7 +71,8 @@ L'idée centrale : les formules de calcul des besoins (Mifflin-St Jeor, niveau d
 - **Planning de la semaine** (Recettes → Semaine) : recettes et repas types placés sur les jours, total de kcal prévu par jour, « Noter » le jour venu (le plat prévu apparaît aussi dans le repas sur l'accueil), liste de courses de la semaine sans ce qu'il y a déjà dans le frigo, copie de la semaine précédente.
 - **Dépense du jour par appli** : calories de chaque appli présente dans Health Connect (Withings, Fit, Fitbit…), moyenne des sources choisies (touche une appli pour l'inclure ou l'exclure ; Fitbit exclu par défaut), et comparaison avec le besoin réel calculé d'après le poids.
 - **Métabolisme de base dans le temps** (Corps & progrès → Métabolisme) : courbe par appli (Withings, Fitbit…) sur 7 j à 1 an, valeur d'un jour précis, évolution de la masse maigre et de la masse grasse lues sur la balance via Health Connect.
-- **Mode sombre** : Moi → Apparence (comme le téléphone, clair ou sombre).
+- **Mode sombre** : Moi → Apparence et langue (comme le téléphone, clair ou sombre).
+- **Français ou anglais** : Moi → Apparence et langue (comme le téléphone, Français, English). Les dates, les nombres et les réponses de l'IA suivent la langue choisie ; tes données ne changent pas.
 - **Calendrier** : touche la date en haut de l'accueil pour aller à n'importe quel jour ; pastille de couleur selon l'objectif calorique, ⚖ les jours de pesée.
 - **Base Ciqual intégrée** : 3 341 aliments génériques officiels (Anses), disponibles hors ligne, recherche sans accents et mot à mot.
 - **Produits de marque** via Open Food Facts (recherche en ligne) et **scanner de codes-barres** (détecteur natif Android, ZXing en secours, lampe, photo, saisie manuelle des chiffres). Produit inconnu : ajout en un formulaire (étiquette lue par l'IA en option), retrouvé au scan suivant.
@@ -209,6 +232,8 @@ Dans Android Studio : laisser la synchro Gradle se terminer (choisir **JVM 17** 
 
 L'APK est dans `android/app/build/outputs/apk/debug/app-debug.apk`.
 
+> Sous Windows, garde le projet dans un dossier dont le chemin n'a pas d'accents (ex. `D:\nutrimaison`) : Gradle refuse les chemins avec des caractères non ASCII.
+
 ### Le script `patch-android.mjs`
 
 Le dossier `android/` est **généré** (il n'est pas versionné). Le script applique toutes les adaptations nécessaires, et peut être relancé sans risque :
@@ -244,10 +269,12 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 | Où | Quoi |
 |---|---|
-| **Moi → Calculer mes besoins** | Sexe, âge, taille, poids, mode détaillé (pas + sport) ou simple, objectif |
+| **Moi → Objectifs → Calculer mes besoins** | Sexe, âge, taille, poids, mode détaillé (pas + sport) ou simple, objectif |
 | **Moi → Intelligence artificielle** | Fournisseur au choix : **Gemini** (clé gratuite sur [aistudio.google.com](https://aistudio.google.com)) ou **Grok** (clé sur [console.x.ai](https://console.x.ai), payant à l'usage). La lecture de vidéo n'existe que chez Gemini. Bouton « Tester la clé ». Modèle : « Automatique (recommandé) » ou un modèle précis, liste mise à jour par « Actualiser la liste des modèles ». Bascule sur un autre modèle s'il est saturé ou retiré. |
 | **Moi → Rappels** | Heure du rappel du soir et de la pesée |
 | **Moi → Health Connect** | Activer, choisir ce qui est envoyé et lu, « Autoriser l'accès » |
+| **Moi → Base hors ligne** | Bases intégrées, téléchargement / mise à jour / suppression de la base complète |
+| **Moi → Apparence et langue** | Thème clair / sombre, langue |
 | **Moi → Calories du sport** | Remanger les calories du sport : non (conseillé), la moitié, la totalité |
 | **Sport → Personnaliser** | Matériel, niveau par mouvement, séances par semaine, mode sans sauts, pas habituels |
 | **Corps → Masse grasse** | Mensurations, méthode Navy ou Armée |
@@ -287,13 +314,20 @@ nutrimaison/
 │   ├── sportData.js           Exercices, programmes, activités (valeurs MET)
 │   ├── healthconnect.js       Synchronisation Health Connect (logique anti-doublon)
 │   ├── HealthConnectCard.jsx  Réglages Health Connect
-│   └── reminders.js           Rappels (notifications locales)
+│   ├── reminders.js           Rappels (notifications locales)
+│   ├── offlineDb.js           Bases hors ligne : intégrée, complète (téléchargée), USDA
+│   ├── i18n.js                Langue de l'interface (français / anglais)
+│   ├── i18n/en.json           Traductions anglaises (texte français → texte anglais)
+│   └── data/                  Bases d'aliments intégrées (générées, voir scripts/)
 ├── native/
 │   ├── android/               Plugin Kotlin + ressources Android (icônes, splash)
 │   └── brand/                 Logo source (SVG)
 ├── scripts/
 │   ├── patch-android.mjs      Prépare le projet Android généré
-│   └── ciqual-to-json.py      Convertit l'Excel Ciqual en src/ciqual.json
+│   ├── ciqual-to-json.py      Convertit l'Excel Ciqual en src/ciqual.json
+│   ├── ciqual-en.py           Noms anglais officiels de Ciqual (appli en anglais)
+│   ├── build-food-db.mjs      Fabrique les bases hors ligne (Open Food Facts, USDA)
+│   └── i18n-check.mjs         Textes de l'interface encore sans traduction anglaise
 ├── public/                    Favicon
 ├── setup.bat / setup.sh       Installation en une commande
 ├── capacitor.config.json
@@ -310,9 +344,9 @@ nutrimaison/
 | `workouts`, `sportSettings` | Séances faites, réglages et programmes perso |
 | `customFoods`, `customRecipes`, `favorites`, `mealTemplates` | Aliments, recettes, favoris et repas types perso |
 | `pantry`, `fridgeExtras`, `shoppingList` | Contenu du frigo et liste de courses |
-| `mealPlan`, `theme` | Planning de la semaine, apparence (clair / sombre / auto) |
+| `mealPlan`, `theme`, `language` | Planning de la semaine, apparence (clair / sombre / auto), langue (`fr`, `en`, ou absente = comme le téléphone) |
 | `healthConnect`, `reminders`, `aiProvider`, `geminiModel`, `geminiModelPref`, `geminiModelList`, `grokModelPref`, `grokModelList`, `bmrHistory`, `bodyComp` | Réglages et état des intégrations |
-| `autoBackup`, `updateCheck` | Copie automatique et vérification des versions (non inclus dans les sauvegardes) |
+| `autoBackup`, `updateCheck`, `offlineDbState` | Copie automatique, vérification des versions et état de la base complète (non inclus dans les sauvegardes) |
 
 ### Copie de sécurité automatique
 
@@ -324,8 +358,10 @@ Au démarrage, si la dernière copie date de plus de 7 jours (ou 1 jour, au choi
 |---|---|---|
 | Ciqual | 3 341 aliments génériques (Anses) | dans l'APK (`src/ciqual.json`) |
 | Produits de marque | les 100 000 produits les plus scannés en France (Open Food Facts) | dans l'APK (`src/data/off-top.json`) |
-| Génériques USDA | aliments génériques américains, noms traduits en français | dans l'APK (`src/data/usda-fr.json`) |
+| Génériques USDA | aliments génériques américains, noms traduits en français (et nom d'origine pour l'appli en anglais) | dans l'APK (`src/data/usda-fr.json`) |
 | Base complète | tous les produits vendus en France sur Open Food Facts | téléchargement optionnel : Moi → Base hors ligne |
+
+La base complète est découpée en petits morceaux avec un index (code-barres → produit, mots → produits) et reste compressée sur le téléphone : seuls les morceaux utiles à une recherche sont lus.
 
 **Fabrication** (`scripts/build-food-db.mjs`, Node 18+, aucune dépendance) :
 - `node scripts/build-food-db.mjs off --top 100000` lit l'export JSONL d'Open Food Facts en flux (≈ 7 Go téléchargés, rien n'est stocké), et écrit dans `build-db/` la base intégrée et la base complète découpée (`p/` produits, `c/` code-barres → produit, `w/` mots → produits) en parties d'environ 8 Mo avec leur manifeste.
@@ -374,6 +410,15 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
    ```
 3. Mettre à jour l'année dans `CIQUAL_CITATION` (`src/ciqualDb.js`).
 
+### Traductions
+
+L'appli est écrite en français. En anglais, `src/i18n.js` remplace à l'affichage chaque texte français par sa traduction de `src/i18n/en.json` (textes, champs, infobulles, boîtes de dialogue), passe les dates et nombres au format anglais et demande à l'IA de répondre en anglais. Les données enregistrées ne changent jamais de langue.
+
+- `en.json` contient des textes exacts (`"Ajouter au journal": "Add to diary"`) et des modèles avec une partie variable (`"{} kcal au-dessus de ton objectif"`, `{#}` pour un nombre).
+- Après avoir ajouté des textes dans l'interface : `node scripts/i18n-check.mjs --tsv a-traduire.tsv`, compléter la 2e colonne, puis `node scripts/i18n-check.mjs --merge a-traduire.tsv`.
+- Un élément qui ne doit jamais être traduit (nom propre, saisie de l'utilisateur) peut porter l'attribut `data-notr`.
+- **Noms des aliments en anglais** : Ciqual publie aussi ses noms en anglais. Télécharger la table anglaise (Excel) sur [ciqual.anses.fr](https://ciqual.anses.fr), puis `python scripts/ciqual-en.py Table_Ciqual_2025_ENG.xlsx` (écrit `src/data/ciqual-en.json`). Pour l'USDA, `node scripts/build-food-db.mjs usda` garde le nom américain d'origine (aucune clé nécessaire si les traductions françaises sont déjà faites). Sans ces fichiers, les noms des aliments restent en français. Les produits de marque gardent leur nom commercial.
+
 ### Modifier le logo
 
 Éditer `native/brand/motif.svg` (le dessin) et `native/brand/icon.svg` (l'icône complète), puis régénérer les PNG de `native/android/res/`.
@@ -383,6 +428,8 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 | Problème | Solution |
 |---|---|
 | `npx cap ...` : *could not determine executable to run* | Pas dans le bon dossier, ou `npm install` pas fait. |
+| *android platform has not been added yet* | Lancer `setup.bat` / `./setup.sh` (crée le dossier `android/` et applique les correctifs). |
+| *Your project path contains non-ASCII characters* | Déplacer le projet dans un dossier sans accents (ex. `D:\nutrimaison`), supprimer `android/` et relancer `setup`. |
 | Menu « Build APK » grisé | Synchro Gradle pas terminée ou en échec : File → Sync Project with Gradle Files, voir l'onglet Build. |
 | *Gradle 8.x is incompatible with JVM 25* | Relancer `node scripts/patch-android.mjs` (il fixe le JDK d'Android Studio), ou choisir **jbr-21 / JDK 17** : Settings → Build Tools → Gradle → Gradle JDK. Autre emplacement du JDK : variable d'environnement `NUTRIMAISON_JDK`. |
 | *connect-client requires compileSdk 36 / AGP 8.9.1* | Relancer `node scripts/patch-android.mjs`, installer le SDK 36. |
@@ -398,7 +445,7 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 
 - Pas de compte, pas de serveur, pas de statistiques d'usage.
 - Vérification des versions : une lecture de la page publique des Releases GitHub, une fois par jour, sans aucune donnée envoyée (désactivable dans **Moi → Mises à jour**).
-- La clé Gemini reste sur le téléphone. Avec une clé, les photos et textes analysés sont envoyés à Google pour l'analyse, et rien d'autre.
+- Les clés d'IA restent sur le téléphone. Avec une clé, les photos et textes analysés sont envoyés au fournisseur choisi (Google ou xAI) pour l'analyse, et rien d'autre.
 - Health Connect : les données restent sur l'appareil, et l'accès se retire à tout moment dans les paramètres Android.
 
 ## Sources des données et licences
@@ -407,6 +454,7 @@ Dans le navigateur, tout fonctionne sauf Health Connect, les rappels et le déte
 |---|---|---|
 | Aliments de base | Anses. 2025. Table de composition nutritionnelle des aliments Ciqual. | [Licence Ouverte Etalab](https://www.etalab.gouv.fr/licence-ouverte-open-licence/) |
 | Produits de marque, codes-barres | [Open Food Facts](https://world.openfoodfacts.org) | ODbL |
+| Aliments génériques américains | [USDA FoodData Central](https://fdc.nal.usda.gov), SR Legacy | domaine public |
 | Recettes en ligne | [TheMealDB](https://www.themealdb.com) | API publique |
 | Intensité des activités (MET) | Compendium of Physical Activities | valeurs publiées |
 

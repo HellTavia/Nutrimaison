@@ -231,7 +231,7 @@ export function parseCSV(text) {
   return rows;
 }
 const NUTR = { 1008: "kcal", 1003: "prot", 1005: "carbs", 1004: "fat", 2000: "sugar", 1079: "fiber", 1093: "sodium", 1258: "satfat", 1051: "water" };
-export const USDA_FIELDS = ["id", "name", "kcal", "prot", "carbs", "fat", "sugar", "fiber", "salt", "satfat", "water"];
+export const USDA_FIELDS = ["id", "name", "kcal", "prot", "carbs", "fat", "sugar", "fiber", "salt", "satfat", "water", "en"]; // en : nom américain d'origine (appli en anglais)
 /** Aliment de marque (mot en majuscules de 4 lettres ou plus : KELLOGG'S, MCDONALD'S…) : inutile en France. */
 // Produits de marque (BURGER KING, McDONALD'S…) : quatre majuscules à la suite, sauf « USDA ».
 export const isBranded = (d) => /[A-Z]{4,}/.test(String(d).replace(/\bUSDA\b/g, "")) || /\b[A-Z][A-Z'&.-]{3,}\b/.test(d);
@@ -370,6 +370,7 @@ async function buildUsda() {
     x.v.sugar != null ? r1(x.v.sugar) : null, x.v.fiber != null ? r1(x.v.fiber) : null,
     x.v.sodium != null ? Math.round(x.v.sodium * 2.5 / 100) / 10 : null, x.v.satfat != null ? r1(x.v.satfat) : null,
     x.v.water != null ? r1(x.v.water) : null,
+    shortName(x.desc),
   ]).sort((a, b) => a[1].localeCompare(b[1], "fr"));
   const outFile = path.join(ROOT, "src", "data", "usda-fr.json");
   fs.writeFileSync(outFile, JSON.stringify({ v: 1, source: "USDA FoodData Central, SR Legacy (domaine public), noms traduits", date: new Date().toISOString().slice(0, 10), fields: USDA_FIELDS, rows }));

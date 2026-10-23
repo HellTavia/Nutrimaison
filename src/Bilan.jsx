@@ -4,8 +4,9 @@ import React, { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { C, MONO, SERIF, Card, BackHeader, Tag, addDays, weekStart, todayISO, frShort, round, dayKcal } from "./shared.jsx";
 import { KCAL_PER_KG } from "./Weight.jsx";
+import { DOW_LETTERS } from "./i18n.js";
 
-const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
+const DAYS = DOW_LETTERS;
 
 function dayTotals(day) {
   const t = { kcal: 0, prot: 0, carbs: 0, fat: 0 };

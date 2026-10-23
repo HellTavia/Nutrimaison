@@ -9,6 +9,7 @@ import { Plus, X, Loader2, Sparkles, Trash2, ShoppingBag, Check } from "lucide-r
 import { C, round, uid, inputStyle } from "./shared.jsx";
 import { geminiGenerate, parseJSONLoose } from "./gemini.js";
 import { MEAL_LABELS, MEAL_ORDER, RECIPE_CATS, recipeCat } from "./foodData.js";
+import { tr } from "./i18n.js";
 
 const MONO = "'IBM Plex Mono',monospace";
 const norm = (s) => String(s || "").replace(/œ/gi, "oe").replace(/æ/gi, "ae").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -216,10 +217,10 @@ export function FridgeAi({ geminiKey, have, ctx, onAddShopping, onSaveRecipe, on
                 P{Math.round(p.per.prot)} G{Math.round(p.per.carbs)} L{Math.round(p.per.fat)} · {p.servings} portion{p.servings > 1 ? "s" : ""}{p.minutes ? ` · ${p.minutes} min` : ""}
               </p>
               <p style={{ margin: "0 0 4px", fontSize: 12.5 }}>
-                <span style={{ color: C.olive, fontWeight: 600 }}>✓ Tu as : </span>{p.ingredients.filter((i) => i.have).map((i) => i.name).join(", ") || "—"}
+                <span style={{ color: C.olive, fontWeight: 600 }}>✓ Tu as : </span>{p.ingredients.filter((i) => i.have).map((i) => tr(i.name)).join(", ") || "—"}
               </p>
               {p.missing.length > 0
-                ? <p style={{ margin: "0 0 8px", fontSize: 12.5 }}><span style={{ color: C.berry, fontWeight: 600 }}>À acheter : </span>{p.missing.join(", ")}</p>
+                ? <p style={{ margin: "0 0 8px", fontSize: 12.5 }}><span style={{ color: C.berry, fontWeight: 600 }}>À acheter : </span>{p.missing.map(tr).join(", ")}</p>
                 : <p style={{ margin: "0 0 8px", fontSize: 12.5, color: C.olive, fontWeight: 600 }}>Rien à acheter 👌</p>}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {p.missing.length > 0 && (

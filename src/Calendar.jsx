@@ -5,11 +5,12 @@ import React, { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { C, todayISO, dayKcal } from "./shared.jsx";
 import { Sheet } from "./MealTools.jsx";
+import { DOW_LETTERS } from "./i18n.js";
 
 const MONO = "'IBM Plex Mono',monospace";
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
-const DOW = ["L", "M", "M", "J", "V", "S", "D"];
+const DOW = DOW_LETTERS;
 
 export function CalendarSheet({ currentDate, allDays, weights, goalKcal, onPick, onClose }) {
   const [ym, setYm] = useState(() => { const [y, m] = currentDate.split("-").map(Number); return { y, m: m - 1 }; });

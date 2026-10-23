@@ -7,6 +7,7 @@
 /* disponibles pour la clé et on prend le meilleur « flash ».        */
 /* ---------------------------------------------------------------- */
 import { grokGenerate } from "./grok.js";
+import { aiLanguageNote } from "./i18n.js";
 
 /* ---------------------------------------------------------------- */
 /* Fournisseur d'IA : Gemini (par défaut, gratuit) ou Grok (xAI)     */
@@ -151,6 +152,12 @@ function markNoThink(model) { try { const s = noThinkSet(); s.add(model); localS
  */
 export async function geminiGenerate(apiKey, parts, opts = {}) {
   // opts.provider force un fournisseur (la lecture de vidéo n'existe que chez Gemini)
+  // en anglais : consigne de langue ajoutée au dernier texte de la demande
+  const note = aiLanguageNote();
+  if (note) {
+    const k = parts.map((p) => typeof p.text === "string").lastIndexOf(true);
+    if (k >= 0) parts = parts.map((p, i) => (i === k ? { ...p, text: p.text + note } : p));
+  }
   if ((opts.provider || getAiProvider()) === "grok") return grokGenerate(apiKey, parts, opts);
   const { onStatus, onModel, json = true, temperature = 0.3, timeoutMs = 45000, totalMs = 110000, signal } = opts;
   const started = Date.now();
