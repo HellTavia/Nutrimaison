@@ -40,7 +40,8 @@ export function OfflineDbCard() {
     background: primary ? C.herb : "transparent", color: primary ? C.onAccent : C.herb, fontWeight: 700, fontSize: 13.5,
     display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
   });
-  const newer = remote && !remote.error && state && remote.date > state.date;
+  const compact = state && !state.gz; // installée avant la 2.29.1 : en clair, prend 3 fois plus de place
+  const newer = remote && !remote.error && state && (remote.date > state.date || compact);
   const remoteSize = remote && !remote.error ? remote.parts.reduce((a, p) => a + p.bytes, 0) : 0;
 
   return (
@@ -65,14 +66,15 @@ export function OfflineDbCard() {
         {state ? (
           <div style={{ marginTop: 10, padding: "10px 12px", background: C.sage, borderRadius: 10, fontSize: 13, lineHeight: 1.6 }}>
             ✓ Installée : <b style={{ fontFamily: MONO }}>{n(state.count)}</b> produits, version du {frDate(state.date)}
-            {newer && <div style={{ color: C.herb, fontWeight: 700 }}>Nouvelle version disponible : {frDate(remote.date)}</div>}
+            {newer && !compact && <div style={{ color: C.herb, fontWeight: 700 }}>Nouvelle version disponible : {frDate(remote.date)}</div>}
+            {newer && compact && <div style={{ color: C.herb, fontWeight: 700 }}>Réinstalle-la pour qu'elle prenne environ 3 fois moins de place.</div>}
           </div>
         ) : remote?.error ? (
           <p style={{ ...small, color: C.inkSoft }}>Base complète pas encore publiée ou hors connexion ({remote.error}).</p>
         ) : remote ? (
           <p style={{ ...small, marginTop: 8 }}>
             En ligne : <b style={{ fontFamily: MONO }}>{n(remote.count)}</b> produits, version du {frDate(remote.date)}, <b>{mb(remoteSize)}</b> à télécharger
-            (environ le double une fois installée). Wi-Fi conseillé.
+            (à peu près autant une fois installée). Wi-Fi conseillé.
           </p>
         ) : <p style={small}>Recherche de la version en ligne…</p>}
 
@@ -92,7 +94,7 @@ export function OfflineDbCard() {
         ) : (
           <>
             {remote && !remote.error && (!state || newer) && (
-              <button onClick={install} style={btn(true)}><Download size={16} /> {state ? "Mettre à jour" : "Télécharger"} ({mb(remoteSize)})</button>
+              <button onClick={install} style={btn(true)}><Download size={16} /> {!state ? "Télécharger" : compact && remote.date <= state.date ? "Réinstaller en compressé" : "Mettre à jour"} ({mb(remoteSize)})</button>
             )}
             {state && (confirmDel ? (
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>

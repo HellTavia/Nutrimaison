@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { loadJSON, saveJSON } from "./shared.jsx";
+import { isEnglish } from "./i18n.js";
 
 export const DB_BASE = "https://github.com/HellTavia/Nutrimaison/releases/download/db/";
 const STATE_KEY = "offlineDbState";
@@ -63,11 +64,12 @@ export function loadEmbedded() {
       import("./data/usda-fr.json").then((m) => m.default || m).catch(() => ({ rows: [] })),
     ]).then(([off, usda]) => {
       const offRows = off.rows || [], usdaRows = usda.rows || [];
+      const usdaEn = (usda.fields || []).indexOf("en"); // nom américain d'origine (recherche en anglais)
       emb = {
         off: offRows, offDate: off.date || null,
         offKey: offRows.map((r) => normWord(r[1] + " " + (r[2] || ""))),
         byCode: new Map(offRows.map((r, i) => [String(r[0]), i])),
-        usda: usdaRows, usdaKey: usdaRows.map((r) => normWord(r[1])),
+        usda: usdaRows, usdaKey: usdaRows.map((r) => normWord(r[1] + (isEnglish && usdaEn >= 0 && r[usdaEn] ? " " + r[usdaEn] : ""))),
       };
       return emb;
     });
@@ -114,8 +116,13 @@ async function readShard(p) {
   if (cache.has(key)) { const v = cache.get(key); cache.delete(key); cache.set(key, v); return v; }
   let data = null;
   try {
-    const r = await Filesystem.readFile({ path: key, directory: Directory.Data, encoding: Encoding.UTF8 });
-    data = JSON.parse(r.data);
+    if (st.gz) { // morceaux gardés compressés (gzip, en base64) : 3 fois moins de place
+      const r = await Filesystem.readFile({ path: key + ".gz", directory: Directory.Data });
+      data = JSON.parse(await gunzipText(fromB64(r.data)));
+    } else { // installations d'avant la 2.29.1 : morceaux en clair
+      const r = await Filesystem.readFile({ path: key, directory: Directory.Data, encoding: Encoding.UTF8 });
+      data = JSON.parse(r.data);
+    }
   } catch (e) { data = null; } // morceau absent = aucun produit pour ce préfixe
   cache.set(key, data);
   while (cache.size > 40) cache.delete(cache.keys().next().value);
@@ -186,14 +193,28 @@ async function getBytes(url) {
     // le client HTTP natif renvoie les fichiers binaires en base64 (et ignore le CORS de GitHub)
     const r = await CapacitorHttp.request({ url, method: "GET", responseType: "blob", readTimeout: 120000, connectTimeout: 20000 });
     if (r.status !== 200) throw new Error("HTTP " + r.status);
-    const bin = atob(r.data);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
+    return fromB64(r.data);
   }
   const r = await fetch(url);
   if (!r.ok) throw new Error("HTTP " + r.status);
   return new Uint8Array(await r.arrayBuffer());
+}
+function toB64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function fromB64(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function gzipText(text) {
+  return new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
+}
+async function gunzipText(bytes) {
+  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
 }
 async function sha256hex(bytes) {
   const h = await crypto.subtle.digest("SHA-256", bytes);
@@ -234,7 +255,8 @@ export async function installFullDb(onProgress, signal) {
         const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
         const tab = line.indexOf("\t");
         if (tab > 0) {
-          await Filesystem.writeFile({ path: dir + "/" + line.slice(0, tab), data: line.slice(tab + 1), directory: Directory.Data, encoding: Encoding.UTF8, recursive: true });
+          const gz = await gzipText(line.slice(tab + 1));
+          await Filesystem.writeFile({ path: dir + "/" + line.slice(0, tab) + ".gz", data: toB64(gz), directory: Directory.Data, recursive: true });
           files++;
         }
       }
@@ -242,7 +264,7 @@ export async function installFullDb(onProgress, signal) {
     }
   }
   const old = fullDbState();
-  saveJSON(STATE_KEY, { dir, date: m.date, count: m.count, chunk: m.chunk, files, bytes: total, installedAt: Date.now() });
+  saveJSON(STATE_KEY, { dir, gz: true, date: m.date, count: m.count, chunk: m.chunk, files, bytes: total, installedAt: Date.now() });
   cache.clear();
   if (old?.dir) { try { await Filesystem.rmdir({ path: old.dir, directory: Directory.Data, recursive: true }); } catch (e) {} }
   return fullDbState();

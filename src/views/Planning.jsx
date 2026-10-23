@@ -7,9 +7,10 @@ import { C, addDays, todayISO, weekStart, frShort, inputStyle } from "../shared.
 import { Sheet } from "../MealTools.jsx";
 import { MEAL_LABELS, MEAL_ORDER, norm, recipeTotals } from "../foodData.js";
 import { planItemFromRecipe, planItemFromTemplate, dayPlannedKcal, shoppingFromPlan } from "../planning.js";
+import { DOW_SHORT } from "../i18n.js";
 
 const MONO = "'IBM Plex Mono',monospace";
-const DOW = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const DOW = DOW_SHORT;
 const chip = (active) => ({
   padding: "6px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, border: `1px solid ${active ? C.herb : C.line}`,
   background: active ? C.herb : C.card, color: active ? C.onAccent : C.ink, whiteSpace: "nowrap",

@@ -9,6 +9,7 @@ import { openCamera } from "../scanner.js";
 import { C, NumInput, Tag, inputStyle, round } from "../shared.jsx";
 import { AiTextMeal, aiFoodPer100 } from "../AiMeal.jsx";
 import { MEAL_LABELS, MEAL_ORDER, calcFromFood, recipeTotals, norm, recipeCat, RECIPE_CATS, MEAL_TO_CAT, recipeMeals } from "../foodData.js";
+import { tr } from "../i18n.js";
 
 /* ---------------------------------------------------------------- */
 /* AJOUTER UN ALIMENT                                                 */
@@ -81,7 +82,7 @@ export function QuickLists({ favorites, recents, onToggleFavorite, onQuickAdd, o
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 13.5, fontWeight: 600 }}>★ {t.name}</span>
                   <span style={{ display: "block", fontSize: 11, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {Math.round(t.items.reduce((a, e) => a + (e.kcal || 0), 0))} kcal · {t.items.map((e) => e.name).join(", ")}
+                    {Math.round(t.items.reduce((a, e) => a + (e.kcal || 0), 0))} kcal · {t.items.map((e) => tr(e.name)).join(", ")}
                   </span>
                 </div>
                 <button onClick={() => onDeleteTemplate(t.id)} aria-label="Supprimer" style={{ background: "none", border: "none", color: C.inkSoft, padding: 4 }}><Trash2 size={14} /></button>

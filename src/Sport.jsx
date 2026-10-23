@@ -13,6 +13,7 @@ import {
   EXERCISES, PROGRAMS, ACTIVITIES, INTENSITY, EQUIPMENT, GROUPS, CHAIN_NAMES, STEP_MET,
 } from "./sportData.js";
 import { SessionGenerator, AICoach } from "./SportGen.jsx";
+import { DOW_LETTERS } from "./i18n.js";
 
 /* ================================================================== */
 /* RÉGLAGES PAR DÉFAUT                                                 */
@@ -261,7 +262,7 @@ function SportHome({ s, idx, kg, workouts, go, personalInfo }) {
                   height: 34, borderRadius: 9, background: n ? C.herb : C.paperDark, color: n ? C.onAccent : C.inkSoft,
                   display: "flex", alignItems: "center", justifyContent: "center", border: isT ? `2px solid ${C.ochre}` : "2px solid transparent",
                 }}>{n ? <Check size={15} /> : null}</div>
-                <span style={{ fontSize: 10.5, color: C.inkSoft }}>{"LMMJVSD"[days.indexOf(d)]}</span>
+                <span style={{ fontSize: 10.5, color: C.inkSoft }}>{DOW_LETTERS[days.indexOf(d)]}</span>
               </div>
             );
           })}

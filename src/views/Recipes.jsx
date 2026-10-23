@@ -10,6 +10,7 @@ import { C, NumInput, SectionTitle, Tag, round } from "../shared.jsx";
 import { searchCiqual, useCiqualReady } from "../ciqualDb.js";
 import { BRAND_DB, FOOD_DB, MEAL_LABELS, MEAL_ORDER, PANTRY_ITEMS, foodById, ingredientData, matchesQuery, offTextSearch, queryTokens, recipeTotals, recipeCat, recipeOrigin, RECIPE_CATS, recipeMeals, defaultMealsForCat } from "../foodData.js";
 import { CatPicker, MealsPicker } from "../CatPicker.jsx";
+import { tr } from "../i18n.js";
 
 /* ---------------------------------------------------------------- */
 /* RECETTES : 3 onglets — Mes recettes · Idées · Semaine              */
@@ -190,10 +191,10 @@ export function RecipesView({ recipeTab, setRecipeTab, allRecipes, frigoRecipes,
                     <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                       <Tag color={C.ochre} bg={C.ochreLight}>{!r.missing?.length ? "Tu as tout ✓" : `${Math.round(r.matchPct * 100)} % du plat`}</Tag>
                     </div>
-                    {r.using?.length > 0 && <p style={{ margin: "6px 0 0", fontSize: 12, color: C.inkSoft }}><span style={{ color: C.olive, fontWeight: 600 }}>Avec ton frigo : </span>{r.using.join(", ")}</p>}
+                    {r.using?.length > 0 && <p style={{ margin: "6px 0 0", fontSize: 12, color: C.inkSoft }}><span style={{ color: C.olive, fontWeight: 600 }}>Avec ton frigo : </span>{r.using.map(tr).join(", ")}</p>}
                     {r.missing?.length > 0 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                        <p style={{ margin: 0, flex: 1, fontSize: 12, color: C.inkSoft }}><span style={{ color: C.berry, fontWeight: 600 }}>À acheter : </span>{r.missing.join(", ")}</p>
+                        <p style={{ margin: 0, flex: 1, fontSize: 12, color: C.inkSoft }}><span style={{ color: C.berry, fontWeight: 600 }}>À acheter : </span>{r.missing.map(tr).join(", ")}</p>
                         <span role="button" tabIndex={0} onClick={(ev) => { ev.stopPropagation(); onAddShopping(r.missing, r.name); flash("Ajouté à la liste de courses (onglet Semaine) ✓"); }}
                           style={{ flexShrink: 0, padding: "6px 10px", borderRadius: 9, border: `1px solid ${C.herb}`, color: C.herb, fontSize: 11.5, fontWeight: 600, background: C.card }}>+ 🛒</span>
                       </div>

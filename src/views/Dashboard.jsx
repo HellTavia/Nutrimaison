@@ -10,6 +10,7 @@ import { C, MONO, Ring, addDays, frDate, frShort, inputStyle, loadJSON, round, s
 import { originLabel, groupSessions, loadHC, saveHC, sessionMet, SESSION_MET, findSessionFix, setSessionFix } from "../healthconnect.js";
 import { MEAL_LABELS, MEAL_ORDER, dayFoodWaterMl, norm } from "../foodData.js";
 import { APP_VERSION } from "../version.js";
+import { tr } from "../i18n.js";
 
 /* ---------------------------------------------------------------- */
 /* PETITS COMPOSANTS UI                                              */
@@ -151,7 +152,7 @@ export function Dashboard({ currentDate, setCurrentDate, dayData, totals, goals,
                   <ChevronDown size={14} color={C.inkSoft} style={{ transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .15s" }} />
                 </span>
                 {items.length > 0 ? (
-                  <span style={{ display: "block", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{items.map((e) => e.name).join(", ")}</span>
+                  <span style={{ display: "block", fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{items.map((e) => tr(e.name)).join(", ")}</span>
                 ) : !plans.length && <span style={{ display: "block", fontSize: 12, color: C.inkSoft, fontStyle: "italic" }}>Rien pour l'instant</span>}
                 {plans.map((p) => (
                   <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ochre, fontWeight: 600, marginTop: 1 }}>

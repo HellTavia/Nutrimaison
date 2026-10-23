@@ -9,6 +9,7 @@ import React, { useState, useMemo } from "react";
 import { X, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { C, addDays, frShort, round, NumInput, inputStyle } from "./shared.jsx";
 import { geminiGenerate, parseJSONLoose, shrinkImage } from "./gemini.js";
+import { tr } from "./i18n.js";
 
 const MONO = "'IBM Plex Mono',monospace";
 const sumKcal = (list) => Math.round((list || []).reduce((s, e) => s + (e.kcal || 0), 0));
@@ -162,7 +163,7 @@ function CopyFrom({ meal, currentDate, allDays, labels, order, templates, onCopy
               <button onClick={() => onAddTemplate(t)} style={{ flex: 1, textAlign: "left", background: C.sage, border: "none", borderRadius: 12, padding: "9px 12px", minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: C.herb }}>★ {t.name}</span>
                 <span style={{ display: "block", fontSize: 11, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {t.items.length} aliments · {sumKcal(t.items)} kcal · {t.items.map((e) => e.name).join(", ")}
+                  {t.items.length} aliments · {sumKcal(t.items)} kcal · {t.items.map((e) => tr(e.name)).join(", ")}
                 </span>
               </button>
               <button onClick={() => onDeleteTemplate(t.id)} aria-label="Supprimer le repas type" style={{ background: "none", border: "none", color: C.inkSoft, padding: 6 }}><Trash2 size={15} /></button>
@@ -186,7 +187,7 @@ function CopyFrom({ meal, currentDate, allDays, labels, order, templates, onCopy
                 <span style={{ display: "block", fontSize: 13.5, fontWeight: 600 }}>{dayLabel(s.date, currentDate)} · {labels[s.meal]}
                   <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkSoft, fontWeight: 500 }}> · {sumKcal(s.list)} kcal</span></span>
                 <span style={{ display: "block", fontSize: 11.5, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isOpen ? "normal" : "nowrap" }}>
-                  {isOpen ? "Choisis les aliments à copier :" : s.list.map((e) => e.name).join(", ")}
+                  {isOpen ? "Choisis les aliments à copier :" : s.list.map((e) => tr(e.name)).join(", ")}
                 </span>
               </button>
               {!isOpen && (
@@ -253,7 +254,7 @@ function SaveTemplate({ meal, items, labels, onSave }) {
   return (
     <div>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du repas type" style={{ ...inputStyle, width: "100%", marginBottom: 10 }} />
-      <p style={{ fontSize: 12, color: C.inkSoft, margin: "0 0 12px" }}>{items.length} aliments · {sumKcal(items)} kcal : {items.map((e) => e.name).join(", ")}</p>
+      <p style={{ fontSize: 12, color: C.inkSoft, margin: "0 0 12px" }}>{items.length} aliments · {sumKcal(items)} kcal : {items.map((e) => tr(e.name)).join(", ")}</p>
       <button disabled={!name.trim()} onClick={() => onSave(name.trim(), items)} style={primary(!name.trim())}>Enregistrer</button>
       <p style={{ fontSize: 11, color: C.inkSoft, margin: "6px 0 0" }}>Tu le retrouveras dans « Ajouter » → onglet Repas, et dans le menu ⋯ de chaque repas.</p>
     </div>

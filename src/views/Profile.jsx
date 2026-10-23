@@ -16,6 +16,7 @@ import { HealthConnectCard } from "../HealthConnectCard.jsx";
 import { ensureNotifPermission, loadReminders, remindersAvailable, saveReminders, syncReminders, testReminder } from "../reminders.js";
 import { CIQUAL_CITATION } from "../ciqualDb.js";
 import { APP_VERSION } from "../version.js";
+import { LANG, langPref, setLangPref } from "../i18n.js";
 
 /* ---------------------------------------------------------------- */
 /* PROFIL / OBJECTIFS                                                 */
@@ -143,7 +144,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     ["prise", "Prise de masse"],
   ];
 
-  const pageTitle = { objectifs: "Objectifs", hc: "Health Connect", ia: "Intelligence artificielle", rappels: "Rappels", base: "Base hors ligne", sauvegarde: "Sauvegarde", apparence: "Apparence", maj: "Mises à jour", apropos: "À propos" };
+  const pageTitle = { objectifs: "Objectifs", hc: "Health Connect", ia: "Intelligence artificielle", rappels: "Rappels", base: "Base hors ligne", sauvegarde: "Sauvegarde", apparence: "Apparence et langue", maj: "Mises à jour", apropos: "À propos" };
   if (page) {
     return (
       <div style={{ padding: "24px 20px 8px" }}>
@@ -357,7 +358,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
         {page === "rappels" && <RemindersCard />}
         {page === "base" && <OfflineDbCard />}
         {page === "sauvegarde" && <BackupCard />}
-        {page === "apparence" && <ThemeCard />}
+        {page === "apparence" && <><ThemeCard /><LanguageCard /></>}
         {page === "maj" && <UpdateCard />}
         {page === "apropos" && <>
       <p style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 16, lineHeight: 1.5 }}>
@@ -398,7 +399,7 @@ export function ProfileView({ goals, onSave, personalInfo, onSavePersonalInfo, s
     ["rappels", Bell, "Rappels", [rem.morning.on && `pesée ${rem.morning.time}`, rem.evening.on && `repas ${rem.evening.time}`].filter(Boolean).join(" · ") || "Aucun"],
     ["base", Database, "Base hors ligne", fullDbState() ? `Complète · ${(fullDbState().count || 0).toLocaleString("fr-FR")} produits` : "Intégrée · base complète en option"],
     ["sauvegarde", CloudUpload, "Sauvegarde", bk.on ? "Automatique" + (bk.last ? " · " + ago(bk.last) : "") : "Manuelle"],
-    ["apparence", Moon, "Apparence", { auto: "Comme le téléphone", light: "Clair", dark: "Sombre" }[theme] || "Comme le téléphone"],
+    ["apparence", Moon, "Apparence et langue", ({ auto: "Comme le téléphone", light: "Clair", dark: "Sombre" }[theme] || "Comme le téléphone") + " · " + (LANG === "en" ? "English" : "Français")],
     ["maj", RefreshCw, "Mises à jour", "Version " + APP_VERSION],
     ["apropos", Info, "À propos et sources", "Licence, données Ciqual et Open Food Facts"],
   ];
@@ -653,6 +654,28 @@ export function ThemeCard() {
           }}>{l}</button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Langue de l'interface : comme le téléphone, français ou anglais (l'appli redémarre). */
+export function LanguageCard() {
+  const pref = langPref();
+  const opts = [["auto", "Comme le téléphone"], ["fr", "Français"], ["en", "English"]];
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+      <p style={{ margin: "0 0 10px", fontFamily: "'Fraunces',serif", fontWeight: 600, fontSize: 15.5 }}>Langue</p>
+      <div style={{ display: "flex", gap: 6 }}>
+        {opts.map(([v, l]) => (
+          <button key={v} data-notr={v === "auto" ? undefined : ""} onClick={() => v !== pref && setLangPref(v)} style={{
+            flex: 1, padding: "9px 4px", borderRadius: 10, fontSize: 12, fontWeight: 600, border: `1px solid ${pref === v ? C.herb : C.line}`,
+            background: pref === v ? C.herb : C.card, color: pref === v ? C.onAccent : C.ink,
+          }}>{l}</button>
+        ))}
+      </div>
+      <p style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, margin: "8px 0 0" }}>
+        L'appli redémarre pour changer de langue. Tes repas, recettes et réglages ne changent pas ; les noms des aliments restent ceux des bases (en français pour Ciqual et Open Food Facts).
+      </p>
     </div>
   );
 }
